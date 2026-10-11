@@ -1,5 +1,8 @@
 # Games
 
+> **Using an AI to make changes?** Tell it to read `AGENTS.md` first:
+> https://raw.githubusercontent.com/parsko41/games/main/AGENTS.md
+
 Tilework, Wheelhouse and Answers in one app: one icon on the phone, a tab per game, one player
 (name and avatar) per phone.
 
@@ -9,6 +12,12 @@ Tilework, Wheelhouse and Answers in one app: one icon on the phone, a tab per ga
 
 Games already in progress carry over. The first time each of you opens an old game in the app,
 tap "I'm <your name>" once and it continues where it left off.
+
+## Live setup (2026-10-11)
+- App: https://parsko41.github.io/games/ (GitHub account `parsko41`, repo `games`, Pages from `main` / root).
+- Games API: Apps Script project "Games API" in the Games folder (Luke's Google account), deployed as a web app with access **Anyone**. Its `/exec` link is in `config.js`.
+- Wheelhouse saves were found in Games/Wheelhouse/Save data (ID 1LZ4d8nBIVDSZ63MM0fhu29tUOh-FVuAP). buildWords was run in the new project for the Tilework word list.
+- Lesson: "Failed to fetch" in the app = the deployment wasn't "Anyone" or config.js had an old link. A *new deployment* gets a new URL; editing an existing one (pencil → New version) keeps it.
 
 ## One-time setup
 
