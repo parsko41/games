@@ -131,6 +131,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.4', '2026-10-11', 'No repeated clues. The game now remembers every category, clue and final you\'ve played (both phones, all games) for a year and won\'t use them again. When the built-in clues run out, it uses fresh online clues instead, from two online sources now (more categories, like Food & Drink and Arts & Literature). Needs the new Games API (1.2).'],
   ['1.3', '2026-10-11', 'Much bigger text under the clue (the last move and your instructions) and on the buttons and answer box, a little bigger again on wider phones. The money line is shorter: Right +$400 · Wrong −$400.'],
   ['1.2', '2026-10-11', 'Bigger text everywhere. On the board, each category name and dollar amount is as big as its box allows (a narrower font fits more), and the clue, names, scores and buttons are all larger.'],
   ['1.1', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
@@ -241,6 +242,13 @@ const store = {
   },
   online: function (n, avoid, cb) {
     google.script.run.withSuccessHandler(function (r) { cb(r || []); }).withFailureHandler(function () { cb([]); }).getOnlineCategories(n, avoid);
+  },
+  // The Games API keeps a year of history so clues aren't repeated. null = an older Games API.
+  planBoard: function (names, want, avoid, online, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r && r.builtin ? r : null); }).withFailureHandler(function () { cb(null); }).planBoard(names, want, avoid, online);
+  },
+  planFinal: function (keys, online, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r || null); }).withFailureHandler(function () { cb(null); }).planFinal(keys, online);
   }
 };
 
@@ -411,11 +419,16 @@ function buildBoard(ns, round, cb) {
   ns.usedCats = ns.usedCats || [];
   const src = ns.settings.source;
   const nOnline = src === 'online' ? 6 : src === 'mixed' ? 2 : 0;
-  const finish = function (online) {
+  const finish = function (online, picked) {   // picked: built-in names the Games API chose, best first
     const cats = online.slice(0, 6).map(function (c) { return { name: c.name, src: 'online', clues: c.clues }; });
     let pool = CLUES.filter(function (c) { return ns.usedCats.indexOf(c.name) < 0; });
     if (pool.length < 6 - cats.length) { ns.usedCats = []; pool = CLUES.slice(); }
-    shuffle(pool).slice(0, 6 - cats.length).forEach(function (c) {
+    pool = shuffle(pool);
+    if (picked) {
+      const rank = function (c) { const i = picked.indexOf(c.name); return i < 0 ? 99 : i; };
+      pool.sort(function (x, y) { return rank(x) - rank(y); });
+    }
+    pool.slice(0, 6 - cats.length).forEach(function (c) {
       ns.usedCats.push(c.name);
       cats.push({ name: c.name, src: 'built-in', clues: c.clues.map(function (x) { return { q: x.q, a: x.a }; }) });
     });
@@ -426,9 +439,13 @@ function buildBoard(ns, round, cb) {
     ns.board = { cats: cats };
     cb();
   };
-  if (!nOnline) return finish([]);
   const avoid = (ns.board ? ns.board.cats : []).map(function (c) { return c.name; });
-  store.online(nOnline, avoid, finish);
+  const names = CLUES.map(function (c) { return c.name; }).filter(function (n) { return ns.usedCats.indexOf(n) < 0; });
+  store.planBoard(names, 6 - nOnline, avoid, src !== 'builtin', function (r) {
+    if (r) return finish(r.online, r.builtin);
+    if (!nOnline) return finish([]);
+    store.online(nOnline, avoid, finish);
+  });
 }
 
 // ---------- actions ----------
@@ -480,24 +497,33 @@ function startRound(ns) {             // ns already bumped; builds a board then 
   });
 }
 function nextRound() {
-  if (S.status !== 'roundEnd' || me() < 0) return;
+  if (busy || S.status !== 'roundEnd' || me() < 0) return;
   const ns = next();
   if (ns.round < ns.settings.rounds) return startRound(ns);
-  startFinal(ns);
-  commit(ns);
+  busy = true; render();
+  $('msg').textContent = 'Picking the final clue…';
+  startFinal(ns, function () { busy = false; commit(ns); });
 }
-function startFinal(ns) {
+function startFinal(ns, cb) {
   ns.cur = null;
   const inn = ns.players.map(function (p, i) { return i; }).filter(function (i) { return ns.players[i].score > 0; });
-  if (!inn.length) { ns.status = 'over'; ns.final = null; addLog(ns, 'Nobody finished above $0, so there\'s no final clue.'); return; }
+  if (!inn.length) { ns.status = 'over'; ns.final = null; addLog(ns, 'Nobody finished above $0, so there\'s no final clue.'); return cb(); }
   ns.usedFinals = ns.usedFinals || [];
-  let pool = FINALS.map(function (f, i) { return i; }).filter(function (i) { return ns.usedFinals.indexOf(i) < 0; });
-  if (!pool.length) { ns.usedFinals = []; pool = FINALS.map(function (f, i) { return i; }); }
-  const k = pool[Math.floor(Math.random() * pool.length)];
-  ns.usedFinals.push(k);
-  ns.final = { cat: FINALS[k].cat, q: FINALS[k].q, a: FINALS[k].a, in: inn, wager: {}, resp: {}, lead: {}, ok: {} };
-  ns.status = 'finalWager';
-  addLog(ns, 'Final clue! The category is ' + FINALS[k].cat + '. Make your wagers.');
+  const use = function (f) {
+    ns.final = { cat: f.cat, q: f.q, a: f.a, in: inn, wager: {}, resp: {}, lead: {}, ok: {} };
+    ns.status = 'finalWager';
+    addLog(ns, 'Final clue! The category is ' + f.cat + '. Make your wagers.');
+    cb();
+  };
+  store.planFinal(FINALS.map(function (f) { return f.cat + ' :: ' + f.q; }), ns.settings.source !== 'builtin', function (r) {
+    if (r && r.q && r.a) return use({ cat: r.cat, q: r.q, a: r.a });            // online: every built-in final was played this year
+    if (r && FINALS[r.i]) { ns.usedFinals.push(r.i); return use(FINALS[r.i]); }
+    let pool = FINALS.map(function (f, i) { return i; }).filter(function (i) { return ns.usedFinals.indexOf(i) < 0; });
+    if (!pool.length) { ns.usedFinals = []; pool = FINALS.map(function (f, i) { return i; }); }
+    const k = pool[Math.floor(Math.random() * pool.length)];
+    ns.usedFinals.push(k);
+    use(FINALS[k]);
+  });
 }
 
 // Every turn action takes an optional `who` (a player's dev id). It's left out when you tap;
@@ -915,7 +941,7 @@ function menuSheet() {
     'Pick <b>What is / Who is</b> and type the rest. Capitals, spaces, punctuation and a leading "the" don\'t matter, and small typos, a plural "s" or an extra word from the clue are forgiven. Numbers have to be exact. ' +
     'Right adds the clue\'s value and gives you the next pick. Wrong subtracts it. <b>Pass</b> costs nothing. If the picker misses or passes, the others get to <b>steal</b> in turn. ' +
     '<b>Daily Doubles</b> are hidden on the board (1 in round 1, 2 in the Double round): only the picker plays, and wagers up to their score or the top clue value. ' +
-    'In the <b>final</b>, everyone above $0 secretly wagers, then answers one clue. Pick <b>Computer</b> as the opponent for a solo game; easy misses a lot, hard rarely does. Categories marked • came from Open Trivia DB.</div></div>' +
+    'In the <b>final</b>, everyone above $0 secretly wagers, then answers one clue. Pick <b>Computer</b> as the opponent for a solo game; easy misses a lot, hard rarely does. Categories marked • are online clues. Clues and categories you\'ve played aren\'t used again for a year.</div></div>' +
     (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
     '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
     (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +

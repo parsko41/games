@@ -1,4 +1,4 @@
-// Games API 1.1: one Apps Script that stores the saves for Tilework, Wheelhouse and Answers.
+// Games API 1.2: one Apps Script that stores the saves for Tilework, Wheelhouse and Answers.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Luke's Drive.
 //
@@ -23,7 +23,7 @@ const GAMES = {
   },
   answers: {
     file: 'answers-state', parent: '1-gGJ2O0LXzXBdbX3wB6IbgpcLG7wNcwt',           // Games/Answers
-    folder: '1KBmbtGoYfsDtKkbL22Gq8RTXruy1lHsw', strict: true, extra: ['getOnlineCategories']
+    folder: '1KBmbtGoYfsDtKkbL22Gq8RTXruy1lHsw', strict: true, extra: ['getOnlineCategories', 'planBoard', 'planFinal']
   }
 };
 
@@ -41,7 +41,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.1', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.2', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -69,6 +69,8 @@ function dispatch_(game, fn, args, who) {
     if (fn === 'getWords') return getWords();
     if (fn === 'getTrendingPuzzle') return getTrendingPuzzle();
     if (fn === 'getOnlineCategories') return getOnlineCategories(args[0], args[1]);
+    if (fn === 'planBoard') return planBoard(args[0], args[1], args[2], args[3]);
+    if (fn === 'planFinal') return planFinal(args[0], args[1]);
   }
   throw new Error('Unknown call: ' + game + '.' + fn);
 }
@@ -548,39 +550,206 @@ function categoryFor_(desc) {
   return 'In the News';
 }
 
-// ---------- Answers: online clues (Open Trivia DB) ----------
-const OTDB_CATS = {
-  9: 'General Knowledge', 10: 'Books', 11: 'Film', 12: 'Music', 14: 'Television',
-  15: 'Video Games', 17: 'Science & Nature', 18: 'Computers', 21: 'Sports',
-  22: 'Geography', 23: 'History', 27: 'Animals'
-};
+// ---------- Answers: no repeats for a year ----------
+// answers-history.json (in Games/Answers) remembers what's been played and on which day:
+// built-in category names, final clues, and every online clue (a fingerprint of its question).
+// Nothing played in the last HISTORY_DAYS days is picked again. Built-in categories and finals
+// only come back early when there's no online fallback ("Built-in only" games, or no internet).
+const HISTORY_DAYS = 365;
+const HISTORY_NAME = 'answers-history.json';
 
+function today_() { return Math.floor(Date.now() / 86400000); }
+
+// Short fingerprint of a question: case, spacing and punctuation don't matter.
+function fp_(s) {
+  const t = String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  let h1 = 2166136261, h2 = 5381;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+    h2 = (Math.imul(h2, 33) + c) >>> 0;
+  }
+  return h1.toString(36) + h2.toString(36);
+}
+
+function historyFile_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('HISTORY_ID');
+  if (id) { try { return DriveApp.getFileById(id); } catch (e) { /* look it up below */ } }
+  const parent = DriveApp.getFolderById(GAMES.answers.parent);
+  const it = parent.getFilesByName(HISTORY_NAME);
+  const f = it.hasNext() ? it.next() : parent.createFile(HISTORY_NAME, '{}', 'application/json');
+  props.setProperty('HISTORY_ID', f.getId());
+  return f;
+}
+
+// {cats: {name: day}, finals: {fp: day}, clues: {fp: day}}, with anything older than a year dropped.
+function readHistory_(file) {
+  let h = {};
+  try { h = JSON.parse((file || historyFile_()).getBlob().getDataAsString() || '{}') || {}; } catch (e) { h = {}; }
+  const cut = today_() - HISTORY_DAYS;
+  ['cats', 'finals', 'clues'].forEach(function (k) {
+    const src = h[k] || {}, out = {};
+    Object.keys(src).forEach(function (x) { if (src[x] > cut) out[x] = src[x]; });
+    h[k] = out;
+  });
+  return h;
+}
+
+// add = {cats: [names], finals: [fps], clues: [fps]}: marks them played today.
+function noteHistory_(add) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const file = historyFile_(), h = readHistory_(file), d = today_();
+    ['cats', 'finals', 'clues'].forEach(function (k) { (add[k] || []).forEach(function (x) { h[k][x] = d; }); });
+    file.setContent(JSON.stringify(h));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Unplayed names first (shuffled), then the ones played longest ago.
+function freshFirst_(names, played) {
+  const fresh = shuffle_(names.filter(function (n) { return !played[n]; }));
+  const old = shuffle_(names.filter(function (n) { return played[n]; }))
+    .sort(function (a, b) { return played[a] - played[b]; });
+  return { fresh: fresh, all: fresh.concat(old) };
+}
+
+// One board. names: built-in categories the page can still use this game; want: how many of them
+// it would like (4 for Built-in + online, 6 for Built-in only, 0 for Online only); avoid: category
+// names already on the board; online: whether online clues are allowed.
+// Returns {builtin: [names], online: [{name, src, clues}]}, 6 categories in all.
+function planBoard(names, want, avoid, online) {
+  names = (names || []).map(String);
+  avoid = avoid || [];
+  want = Math.min(Math.max(Math.floor(Number(want) || 0), 0), 6);
+  const h = readHistory_();
+  const order = freshFirst_(names, h.cats);
+  const builtin = (online ? order.fresh : order.all).slice(0, want);
+  let cats = [];
+  if (online && builtin.length < 6) cats = fetchOnline_(6 - builtin.length, avoid.concat(builtin), h);
+  // Still short (no internet, or Built-in only): fill with built-ins, least recently played first.
+  order.all.forEach(function (n) { if (builtin.length + cats.length < 6 && builtin.indexOf(n) < 0) builtin.push(n); });
+  const clues = [];
+  cats.forEach(function (c) { c.clues.forEach(function (x) { clues.push(fp_(x.q)); }); });
+  noteHistory_({ cats: builtin, clues: clues });
+  return { builtin: builtin, online: cats };
+}
+
+// The final clue. keys: one per built-in final ("Category :: clue"). Returns {i} (a built-in
+// final), or {cat, q, a} (an online one, when every built-in final was played this year).
+function planFinal(keys, online) {
+  keys = (keys || []).map(String);
+  const h = readHistory_();
+  const fps = keys.map(fp_), idx = keys.map(function (k, i) { return i; });
+  const order = shuffle_(idx).sort(function (a, b) { return (h.finals[fps[a]] || 0) - (h.finals[fps[b]] || 0); });
+  if (order.length && !h.finals[fps[order[0]]]) {
+    noteHistory_({ finals: [fps[order[0]]] });
+    return { i: order[0] };
+  }
+  if (online) {
+    const f = fetchFinal_(h);
+    if (f) { noteHistory_({ clues: [fp_(f.q)] }); return f; }
+  }
+  if (!order.length) return null;
+  noteHistory_({ finals: [fps[order[0]]] });
+  return { i: order[0] };
+}
+
+// ---------- Answers: online clues ----------
+// Two free sources: The Trivia API (the-trivia-api.com, big, fast) and Open Trivia DB
+// (opentdb.com, one call per 5 seconds). A category tries the sources it has in random order.
+const ONLINE_CATS = [
+  { name: 'General Knowledge', tta: 'general_knowledge', otdb: 9 },
+  { name: 'Books', otdb: 10 },
+  { name: 'Arts & Literature', tta: 'arts_and_literature' },
+  { name: 'Film', otdb: 11 },
+  { name: 'Film & TV', tta: 'film_and_tv' },
+  { name: 'Music', tta: 'music', otdb: 12 },
+  { name: 'Television', otdb: 14 },
+  { name: 'Video Games', otdb: 15 },
+  { name: 'Science & Nature', otdb: 17 },
+  { name: 'Science', tta: 'science' },
+  { name: 'Computers', otdb: 18 },
+  { name: 'Sports', tta: 'sport_and_leisure', otdb: 21 },
+  { name: 'Geography', tta: 'geography', otdb: 22 },
+  { name: 'History', tta: 'history', otdb: 23 },
+  { name: 'Animals', otdb: 27 },
+  { name: 'Food & Drink', tta: 'food_and_drink' },
+  { name: 'Society & Culture', tta: 'society_and_culture' }
+];
+let lastOtdb_ = 0;
+
+// Older pages call this directly (no history check on their built-in clues).
 function getOnlineCategories(n, avoid) {
   n = Math.min(Math.max(Math.floor(Number(n) || 0), 0), 6);
-  avoid = avoid || [];
-  const ids = Object.keys(OTDB_CATS).filter(function (id) { return avoid.indexOf(OTDB_CATS[id]) < 0; });
-  shuffle_(ids);
-  const out = [];
+  const h = readHistory_();
+  const out = fetchOnline_(n, avoid || [], h);
+  const clues = [];
+  out.forEach(function (c) { c.clues.forEach(function (x) { clues.push(fp_(x.q)); }); });
+  if (clues.length) noteHistory_({ clues: clues });
+  return out;
+}
+
+// n categories of 5 clues (easiest first) that haven't been played this year.
+function fetchOnline_(n, avoid, h) {
+  const cats = shuffle_(ONLINE_CATS.filter(function (c) { return avoid.indexOf(c.name) < 0; }));
+  const seen = Object.assign({}, h.clues), down = {}, out = [];
   let calls = 0;
-  for (let k = 0; k < ids.length && out.length < n && calls < n + 2; k++) {
-    if (calls) Utilities.sleep(5200);
-    calls++;
-    try {
-      const url = 'https://opentdb.com/api.php?amount=30&type=multiple&encode=url3986&category=' + ids[k];
-      const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      if (res.getResponseCode() !== 200) continue;
-      const data = JSON.parse(res.getContentText());
-      if (data.response_code !== 0) continue;
-      const pool = (data.results || []).map(function (r) {
-        return { q: dec_(r.question), a: dec_(r.correct_answer), d: r.difficulty };
-      }).filter(goodClue_);
+  for (let k = 0; k < cats.length && out.length < n && calls < n + 4; k++) {
+    const srcs = shuffle_(['tta', 'otdb'].filter(function (s) { return cats[k][s] && !down[s]; }));
+    for (let j = 0; j < srcs.length && calls < n + 4; j++) {
+      calls++;
+      const got = fetchClues_(srcs[j], cats[k][srcs[j]], '');
+      if (!got.length) { down[srcs[j]] = 1; calls--; continue; }   // that site isn't answering: stop asking it
+      const pool = got.filter(function (c) { return goodClue_(c) && !seen[fp_(c.q)]; });
       const five = pickFive_(pool);
-      if (five) out.push({ name: OTDB_CATS[ids[k]], src: 'online', clues: five });
-    } catch (e) {
-      // try another category
+      if (!five) continue;
+      five.forEach(function (c) { seen[fp_(c.q)] = 1; });
+      out.push({ name: cats[k].name, src: 'online', clues: five });
+      break;
     }
   }
   return out;
+}
+
+// One hard online clue for the final, not played this year.
+function fetchFinal_(h) {
+  const cats = shuffle_(ONLINE_CATS.filter(function (c) { return c.tta; }));
+  for (let k = 0; k < 3 && k < cats.length; k++) {
+    const pool = fetchClues_('tta', cats[k].tta, 'hard').filter(function (c) { return goodClue_(c) && !h.clues[fp_(c.q)]; });
+    if (pool.length) { const c = pool[0]; return { cat: cats[k].name, q: c.q, a: c.a }; }
+  }
+  return null;
+}
+
+// [{q, a, d}] from one source, or [] if it didn't answer.
+function fetchClues_(src, cat, difficulty) {
+  try {
+    if (src === 'tta') {
+      const url = 'https://the-trivia-api.com/v2/questions?limit=50&categories=' + cat + (difficulty ? '&difficulties=' + difficulty : '');
+      const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      if (res.getResponseCode() !== 200) return [];
+      return shuffle_(JSON.parse(res.getContentText()) || []).filter(function (r) { return !r.isNiche; }).map(function (r) {
+        return { q: String(r.question && r.question.text || r.question || '').trim(), a: String(r.correctAnswer || '').trim(), d: r.difficulty };
+      });
+    }
+    const wait = lastOtdb_ + 5200 - Date.now();
+    if (wait > 0) Utilities.sleep(wait);
+    lastOtdb_ = Date.now();
+    const url = 'https://opentdb.com/api.php?amount=50&type=multiple&encode=url3986&category=' + cat + (difficulty ? '&difficulty=' + difficulty : '');
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return [];
+    const data = JSON.parse(res.getContentText());
+    if (data.response_code !== 0) return [];
+    return (data.results || []).map(function (r) {
+      return { q: dec_(r.question), a: dec_(r.correct_answer), d: r.difficulty };
+    });
+  } catch (e) {
+    return [];
+  }
 }
 
 function dec_(s) {

@@ -1,5 +1,13 @@
 # Games app: changelog
 
+## No repeated clues (2026-10-11): Answers 1.4, Games API 1.2
+- Why repeats happened: Answers has 36 built-in categories and 16 finals, and each game only remembered what *that* game had used. A Built-in + online game uses 8 built-in categories, so after about 4 games everything came round again. Online clues were 30 random questions per category with no memory at all.
+- Now the Games API keeps a year of history for both phones and every game: built-in category names, finals, and a fingerprint of every online clue. Nothing played in the last 365 days is used again.
+- When the built-in categories (or finals) are all used up, the board fills with fresh online categories (and the final becomes a hard online clue). "Built-in only" games can't do that, so they reuse the categories played longest ago.
+- A second online source, The Trivia API (the-trivia-api.com, free, no key), alongside Open Trivia DB. New categories: Arts & Literature, Film & TV, Science, Food & Drink, Society & Culture. If one site is down the other is used.
+- How: `answers-history.json` in Games/Answers on Drive (`{cats, finals, clues}` of name/fingerprint → day number; entries older than a year are dropped). New API calls `planBoard(names, want, avoid, online)` and `planFinal(keys, online)`; `getOnlineCategories` still works for older pages. The page falls back to the old behavior if the Games API hasn't been updated yet.
+- Needs the new `server/Code.gs` (Luke: paste, save, Deploy → Manage deployments → pencil → New version). The history starts empty, so clues from games before this update can show up once more.
+
 ## Games 1.2 (2026-10-11): color-coded alerts
 - Each waiting game gets its own notification with its own icon: red T (Tilework), green W (Wheelhouse), blue A (Answers). A game's notification goes away when it's no longer waiting; the Android icon dot goes when none are left.
 - The dots on the game tabs use the same colors.
