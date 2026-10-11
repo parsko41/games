@@ -1,5 +1,9 @@
 # Games app: changelog
 
+## Games 1.3 (2026-10-11): Games API version in the app
+- Tap your avatar: the bottom line now says "Games app 1.3 · Games API 1.2", so you can tell the two apart and check that a Games API deploy took.
+- How: the page reads the version from the API link's health check (a GET of the `/exec` link, `{app: 'Games API 1.2'}`); no server change. Shows "not reachable" if the API can't be reached.
+
 ## No repeated clues (2026-10-11): Answers 1.4, Games API 1.2
 - Why repeats happened: Answers has 36 built-in categories and 16 finals, and each game only remembered what *that* game had used. A Built-in + online game uses 8 built-in categories, so after about 4 games everything came round again. Online clues were 30 random questions per category with no memory at all.
 - Now the Games API keeps a year of history for both phones and every game: built-in category names, finals, and a fingerprint of every online clue. Nothing played in the last 365 days is used again.

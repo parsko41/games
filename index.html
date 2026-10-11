@@ -64,7 +64,7 @@
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = '1.2';
+  const APP_VERSION = '1.3';
   const GAMES = ['tilework', 'wheelhouse', 'answers'];
   const EMOJI = ['🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐙','🦉','🐢','🦄','🐝','🐞','🦋','🐬','🐳','🦖','🌵','🌻','🍄','🍕','🍩','⚡','🔥','🌈','⭐','🌙','🚀','🚂','🎸','🎲','📷'];
   const $ = function (id) { return document.getElementById(id); };
@@ -206,7 +206,19 @@
     });
   }
 
-  function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+  function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); showApiVersion(); }
+
+  // Version line at the bottom of each sheet: this app, and the Games API (Luke's Apps Script),
+  // read from the API link's health check (opening the /exec link shows {app: 'Games API 1.2'}).
+  let apiVersion = '';
+  function verLine() { return '<div class="ver">Games app ' + APP_VERSION + ' · Games API <span id="apiVer">' + (esc(apiVersion) || '…') + '</span></div>'; }
+  function showApiVersion() {
+    if (apiVersion) return;
+    fetch(window.GAMES_API_URL).then(function (r) { return r.json(); }).then(function (j) {
+      apiVersion = String(j.app || '').replace(/^Games API\s*/, '') || '?';
+      if ($('apiVer')) $('apiVer').textContent = apiVersion;
+    }, function () { if ($('apiVer')) $('apiVer').textContent = 'not reachable'; });
+  }
   function closeSheet() { $('sheet').classList.add('hidden'); }
   $('sheet').onclick = function (e) { if (e.target.id === 'sheet' && player) closeSheet(); };
 
@@ -215,7 +227,7 @@
     openSheet('<h2>Who\'s playing on this phone?</h2><div class="small">You only do this once. Every game remembers you after this.</div>' +
       '<div id="whoList" class="who" style="margin-top:14px"><div class="small">Loading players…</div></div>' +
       '<h3>New player</h3><button id="bNewP" style="width:100%;padding:12px;border-radius:12px;background:var(--panel2);font-weight:600">+ I\'m new</button>' +
-      '<div class="ver">Games ' + APP_VERSION + '</div>');
+      verLine());
     $('bNewP').onclick = function () { editSheet(null); };
     GamesApp.refresh().then(function (all) {
       const keys = Object.keys(all || {}).sort(function (a, b) { return (all[b].t || 0) - (all[a].t || 0); });
@@ -243,7 +255,7 @@
           (alertsOn() ? '<button id="pTest">Send a test</button>' : '') + '</div>'
         : '<div class="small">Turn alerts need the installed app (Chrome → Install app).</div>')) +
       (isNew ? '' : '<div class="row"><button id="pSwitch">Switch to another player</button></div>') +
-      '<div class="ver">Games ' + APP_VERSION + '</div>');
+      verLine());
     $('emo').onclick = function (e) {
       const b = e.target.closest('button'); if (!b) return;
       pick = b.dataset.e;
