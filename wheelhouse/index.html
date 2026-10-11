@@ -148,6 +148,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.3', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
   ['1.2', '2026-10-11', 'The clue under the puzzle is twice as big.'],
   ['1.1', '2026-10-11', 'Bigger text everywhere, and much bigger letter keys at the bottom. The value strip is a little shorter so a whole turn still fits on the screen.'],
   ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first spinner is chosen at random. Same game otherwise.'],
@@ -480,7 +481,8 @@ function hide(ns) {           // copy for saving: answer encoded, plain text dro
   if (out.puzzle && typeof out.puzzle.text === 'string') { out.puzzle.enc = encText(out.puzzle.text, out.gid); delete out.puzzle.text; }
   return out;
 }
-function reveal(st) {         // after loading: decode the answer back into puzzle.text
+function reveal(st) {         // after loading: decode the answer back into puzzle.text, and use current login names
+  if (st && window.GamesApp) GamesApp.fixNames(st.players);
   if (st && st.puzzle && st.puzzle.enc && typeof st.puzzle.text !== 'string') {
     try { st.puzzle.text = decText(st.puzzle.enc, st.gid); } catch (e) { st.puzzle.text = ''; }
   }
@@ -530,6 +532,7 @@ function switchTab(i) {
 }
 function tabInfo(g) {
   if (!g) return { label: 'New game', dot: false };
+  if (window.GamesApp) g = Object.assign({}, g, { names: g.names.map(function (n, i) { return GamesApp.nameOf(g.devs[i], n); }) });
   const mine = g.devs.indexOf(DEV) >= 0;
   if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
   const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
@@ -982,7 +985,7 @@ function renderLobby() {
   }).join('') +
     '<div class="small" style="margin-top:8px">' + S.settings.rounds + ' rounds + bonus · Puzzles: ' + ({ mixed: 'Built-in + online', builtin: 'Built-in', online: 'Online' })[S.settings.source] + '</div></div>';
   if (m < 0 && S.players.length < MAX_SEATS) {
-    h += '<div class="card"><h2>Join</h2><input id="jName" maxlength="14" placeholder="Your name" value="' + esc(lsGet('wheelhouse-name') || '') + '"><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+    h += '<div class="card"><h2>Join</h2><div class="small">Joining as <b>' + esc(myName()) + '</b>.</div><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
   } else if (m < 0) {
     h += '<div class="card small">The game is full.</div>';
   }
@@ -990,20 +993,19 @@ function renderLobby() {
   else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(S.players[0].name) + ' to start…</div>';
   h += '<div class="small center" style="margin-top:12px">The other player joins from their Wheelhouse tab.</div>';
   L.innerHTML = h;
-  if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('wheelhouse-name', n); join(n); };
+  if ($('bJoin')) $('bJoin').onclick = function () { join(myName()); };
   if ($('bStart')) $('bStart').onclick = function () { startRound(next()); };
 }
 
+function myName() { return lsGet('wheelhouse-name') || 'Player'; }   // the app login name (shim.js keeps it current)
 function setupForm() {
-  return '<div class="row"><label>Your name</label><input id="sName" maxlength="14" value="' + esc(lsGet('wheelhouse-name') || '') + '"></div>' +
+  return '<div class="small" style="margin-bottom:8px">Playing as <b>' + esc(myName()) + '</b>. Tap your avatar at the top right to change your name.</div>' +
     '<div class="row"><label>Rounds</label><select id="sRounds"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>' +
     '<div class="row"><label>Puzzles</label><select id="sSrc"><option value="mixed" selected>Built-in + online</option><option value="builtin">Built-in only</option><option value="online">Online only</option></select></div>';
 }
 function bindSetup(btnId, after) {
   $(btnId).onclick = function () {
-    const n = $('sName').value.trim();
-    if (!n) return toast('Enter your name');
-    lsSet('wheelhouse-name', n);
+    const n = myName();
     if (after) after();
     newGame(n, { rounds: +$('sRounds').value, source: $('sSrc').value });
   };
@@ -1066,7 +1068,7 @@ function buzzIfMyTurn() {
 // ---------- start ----------
 drawStrip(1);
 render();
-window.addEventListener('gamesprofiles', function () { if (S && S.status !== 'lobby') renderPlayers(); else render(); });
+window.addEventListener('gamesprofiles', function () { if (S && window.GamesApp) GamesApp.fixNames(S.players); renderTabs(); if (S && S.status !== 'lobby') renderPlayers(); else render(); });
 store.get(function (st) { if (st !== undefined) apply(st); else toast('Could not load the game.'); });
 setInterval(poll, 4000);
 document.addEventListener('visibilitychange', poll);

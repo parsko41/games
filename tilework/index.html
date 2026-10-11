@@ -208,6 +208,7 @@ input{-webkit-user-select:text;user-select:text}
 const N=15;
 let CENTER=112;
 const VERSIONS=[
+  ["1.1","Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right."],
   ["1.0","Part of the Games app: one player and avatar for all three games (picked once per phone), and the first player is chosen at random. Same game otherwise."],
   ["v12","Much bigger word list: Collins Scrabble Words 2021 plus the 2023 North American list, about 280,000 words (ZEN, QI, ZA and friends are in). If a word still isn’t in the list, tap Play a second time to play it anyway."],
   ["v11","Up to 5 games at once, each in its own tab at the top (a green dot means it’s your turn there). ☰ → Close this game frees a tab. Random values are now a true shuffle; the balanced version is “Random (fair)”. Needs the new Code.gs."],
@@ -445,7 +446,12 @@ function setGames(g){if(!Array.isArray(g))return;const a=JSON.stringify(games),b
 let lastKey=null;
 function applyRemote(s){
   const key=s?s.gid+":"+s.moveNo:"none";
-  if(key===lastKey)return;lastKey=key;state=s?clone(s):null;onState();
+  if(key===lastKey)return;lastKey=key;state=s?loginNames(clone(s)):null;onState();
+}
+// Show each player's current Games login name instead of the one saved in the game.
+function loginNames(st){
+  if(st&&st.players&&window.GamesApp){st.names=st.names||["",""];st.players.forEach((p,i)=>{if(p)st.names[i]=GamesApp.nameOf(p,st.names[i]);});}
+  return st;
 }
 async function initStore(){
   if(!(window.google&&google.script&&google.script.run)){
@@ -965,7 +971,7 @@ function tabLabel(g,i){
   if(mode==="local")return "Game "+(i+1);
   const seat=g.players?g.players.indexOf(myId):-1;
   if(g.status==="waiting")return seat===0?"Waiting…":"Join game";
-  const other=seat>=0?1-seat:1;const nm=(g.names&&g.names[other])||"Player "+(other+1);
+  const other=seat>=0?1-seat:1;const nm=(window.GamesApp&&g.players?GamesApp.nameOf(g.players[other],g.names&&g.names[other]):g.names&&g.names[other])||"Player "+(other+1);
   return (g.status==="over"?"✓ ":"")+"vs "+nm;
 }
 function myTurnIn(g){
@@ -1002,7 +1008,9 @@ async function closeThisGame(){
 function canRename(s){return !!state&&state.status!=="waiting"&&(mode==="local"||(s===me&&me>=0));}
 let renameSeat=-1;
 function openRename(s){
-  if(!canRename(s)||busy)return;renameSeat=s;
+  if(!canRename(s)||busy)return;
+  if(mode==="remote"){msg={t:"To change your name, tap your avatar at the top right.",k:"dim"};render();return;}
+  renameSeat=s;
   const i=$("renameIn");i.value=(state.names&&state.names[s])||"";i.placeholder=mode==="local"?"Player "+(s+1):"Your name";
   $("renameVeil").classList.add("on");setTimeout(()=>i.focus(),60);
 }
@@ -1038,7 +1046,7 @@ function decorateBoard(){
     if(!b.firstChild||b.firstChild.nodeType===3)b.textContent=i===CENTER?"":(b.dataset.pr||"");}
 }
 decorateBoard();
-const NAMEIN='<input id="nameIn" class="namein" maxlength="20" placeholder="Your name" autocomplete="given-name">';
+function nameLine(){return '<p>Playing as <b>'+esc(savedName()||"Player")+'</b>.</p>';}
 function fillName(){const i=$("nameIn");if(i&&!i.value)i.value=savedName();}
 
 function tileNode(t,cls){
@@ -1115,13 +1123,13 @@ function render(){
   }else if(!state){
     lobby.hidden=false;
     lobby.innerHTML=mode==="remote"
-      ?'<h2>Start a game</h2><p>Start one here. The other player sees it in their Tilework tab and taps Join, and you’re off.</p>'+NAMEIN+'<button class="btn primary" id="lobbyGo">Start a new game</button>'
+      ?'<h2>Start a game</h2><p>Start one here. The other player sees it in their Tilework tab and taps Join, and you’re off.</p>'+nameLine()+'<button class="btn primary" id="lobbyGo">Start a new game</button>'
       :'<h2>Pass and play</h2><p>Play on one phone and pass it back and forth.</p><button class="btn primary" id="lobbyGo">Start a new game</button>';
     $("lobbyGo").onclick=()=>openSetup(()=>startNew(false));fillName();
   }else if(state.status==="waiting"){
     lobby.hidden=false;
     if(me===0)lobby.innerHTML='<h2>Waiting for the other player</h2><p>The game starts as soon as they open Tilework and tap Join.</p>';
-    else{lobby.innerHTML='<h2>'+esc((state.names&&state.names[0])||"Your friend")+' started a game</h2><p>Take the second seat to start playing.</p><p><b>'+esc(rulesLabel(state))+'</b></p>'+NAMEIN+'<button class="btn primary" id="joinBtn">Join game</button>';$("joinBtn").onclick=joinGame;$("joinBtn").disabled=busy;fillName();}
+    else{lobby.innerHTML='<h2>'+esc((state.names&&state.names[0])||"Your friend")+' started a game</h2><p>Take the second seat to start playing.</p><p><b>'+esc(rulesLabel(state))+'</b></p>'+nameLine()+'<button class="btn primary" id="joinBtn">Join game</button>';$("joinBtn").onclick=joinGame;$("joinBtn").disabled=busy;fillName();}
   }else if(mode==="remote"&&me<0){
     lobby.hidden=false;showBoard=false;
     lobby.innerHTML='<h2>Which player are you?</h2><p>This phone isn’t linked to a seat in this game yet (that happens once after moving to the Games app). Tap your name to pick up where you left off.</p><button class="btn" id="seat0"></button><button class="btn" id="seat1"></button>';
@@ -1212,7 +1220,7 @@ $("coverBtn").onclick=()=>$("cover").classList.remove("on");
 
 render();
 initStore();
-window.addEventListener("gamesprofiles",()=>render());
+window.addEventListener("gamesprofiles",()=>{if(mode==="remote")loginNames(state);render();renderTabs();});
 window.__tw={get state(){return state;},get me(){return me;},get myId(){return myId;},get busy(){return busy;}};
 })();
 </script>

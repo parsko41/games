@@ -72,5 +72,17 @@
   }
   if (GAME !== 'app') { refresh(); setInterval(function () { if (!document.hidden) refresh(); }, 60000); }
 
-  window.GamesApp = { game: GAME, call: call, player: player, profiles: function () { return profiles; }, refresh: refresh, avatar: avatar };
+  // ---------- names ----------
+  // The app login name wins over the name saved in a game, so a rename shows everywhere at once.
+  function nameOf(dev, name) {
+    const p = dev && profiles[dev];
+    return p && p.name ? p.name : (name || '');
+  }
+  // Swap in login names for an array of seats like [{dev, name}, ...] (changes them in place).
+  function fixNames(seats) {
+    (seats || []).forEach(function (s) { if (s && s.dev) s.name = nameOf(s.dev, s.name); });
+    return seats;
+  }
+
+  window.GamesApp = { game: GAME, call: call, player: player, profiles: function () { return profiles; }, refresh: refresh, avatar: avatar, nameOf: nameOf, fixNames: fixNames };
 })();

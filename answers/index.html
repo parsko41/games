@@ -131,6 +131,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.1', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
   ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first pick is random. New: play against the computer (easy, medium or hard) from the New game screen.'],
   ['v3', '2026-10-10', 'Small typos are forgiven (Arachnaphobia counts), as are a plural "s" and extra words taken from the clue ("green paint" when the clue says paint). Numbers still have to be exact. When a response is close enough, the log shows the right spelling. Online clues that only make sense with the multiple-choice options ("starred in the following movies, except which one?") are filtered out.'],
   ['v2', '2026-10-03', 'Project switched to the Chrome V8 runtime (fixes online clue categories). No gameplay changes.'],
@@ -439,7 +440,8 @@ function hide(ns) {             // copy for saving: answers encoded, plain text 
   eachSecret(out, function (o, seed) { if (typeof o.a === 'string') { o.e = encText(o.a, seed); delete o.a; } });
   return out;
 }
-function reveal(st) {           // after loading: decode answers back into .a
+function reveal(st) {           // after loading: decode answers back into .a, and use current login names
+  if (st && window.GamesApp) GamesApp.fixNames(st.players);
   if (st) eachSecret(st, function (o, seed) {
     if (o.e && typeof o.a !== 'string') { try { o.a = decText(o.e, seed); } catch (e) { o.a = ''; } }
   });
@@ -505,6 +507,7 @@ function switchTab(i) {
 }
 function tabInfo(g) {
   if (!g) return { label: 'New game', dot: false };
+  if (window.GamesApp) g = Object.assign({}, g, { names: g.names.map(function (n, i) { return GamesApp.nameOf(g.devs[i], n); }) });
   const mine = g.devs.indexOf(DEV) >= 0;
   if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
   const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
@@ -1065,23 +1068,21 @@ function renderLobby() {
   }).join('') +
     '<div class="small" style="margin-top:8px">' + (S.settings.rounds === 2 ? 'Round 1 + Double round' : 'One round') + ' + final · Clues: ' + ({ mixed: 'Built-in + online', builtin: 'Built-in', online: 'Online' })[S.settings.source] + '</div></div>';
   if (m < 0 && S.players.length < MAX_SEATS) {
-    h += '<div class="card"><h2>Join</h2><input id="jName" maxlength="14" placeholder="Your name" value="' + esc(lsGet('answers-name') || '') + '"><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+    h += '<div class="card"><h2>Join</h2><div class="small">Joining as <b>' + esc(myName()) + '</b>.</div><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
   } else if (m < 0) {
     h += '<div class="card small">The game is full.</div>';
   }
   if (host) h += '<button class="primary" id="bStart" style="width:100%"' + (busy ? ' disabled' : '') + '>' + (S.players.length >= 2 ? 'Start game' : 'Start solo (or wait for the other player)') + '</button>';
   else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(S.players[0].name) + ' to start…</div>';
   h += '<div class="small center" style="margin-top:12px">The other player joins from their Answers tab.</div>';
-  // keep a half-typed name if a poll re-renders the lobby
-  const typed = $('jName') ? $('jName').value : null;
   L.innerHTML = h;
-  if ($('jName') && typed !== null) $('jName').value = typed;
-  if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('answers-name', n); join(n); };
+  if ($('bJoin')) $('bJoin').onclick = function () { join(myName()); };
   if ($('bStart')) $('bStart').onclick = function () { if (!busy) startRound(next()); };
 }
 
+function myName() { return lsGet('answers-name') || 'Player'; }   // the app login name (shim.js keeps it current)
 function setupForm() {
-  return '<div class="row"><label>Your name</label><input id="sName" maxlength="14" value="' + esc(lsGet('answers-name') || '') + '"></div>' +
+  return '<div class="small" style="margin-bottom:8px">Playing as <b>' + esc(myName()) + '</b>. Tap your avatar at the top right to change your name.</div>' +
     '<div class="row"><label>Opponent</label><select id="sOpp">' + [['person', 'The other player'], ['easy', 'Computer: easy'], ['medium', 'Computer: medium'], ['hard', 'Computer: hard']].map(function (o) {
       return '<option value="' + o[0] + '"' + ((lsGet('answers-opp') || 'person') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
     '<div class="row"><label>Rounds</label><select id="sRounds"><option value="2" selected>Round 1 + Double</option><option value="1">One round</option></select></div>' +
@@ -1089,9 +1090,7 @@ function setupForm() {
 }
 function bindSetup(btnId, after) {
   $(btnId).onclick = function () {
-    const n = $('sName').value.trim();
-    if (!n) return toast('Enter your name');
-    lsSet('answers-name', n);
+    const n = myName();
     if (after) after();
     lsSet('answers-opp', $('sOpp').value);
     newGame(n, { rounds: +$('sRounds').value, source: $('sSrc').value, opp: $('sOpp').value });
@@ -1146,7 +1145,7 @@ function buzzIfMyTurn() {
 
 // ---------- start ----------
 render();
-window.addEventListener('gamesprofiles', function () { if (S && S.status !== 'lobby') renderPlayers(); else render(); });
+window.addEventListener('gamesprofiles', function () { if (S && window.GamesApp) GamesApp.fixNames(S.players); renderTabs(); if (S && S.status !== 'lobby') renderPlayers(); else render(); });
 store.get(function (st) { if (st !== undefined) apply(st); else { loaded = true; render(); toast('Could not load the game.'); } });
 setInterval(poll, 4000);
 document.addEventListener('visibilitychange', poll);

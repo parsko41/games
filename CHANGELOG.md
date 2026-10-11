@@ -1,5 +1,10 @@
 # Games app: changelog
 
+## Login names everywhere (2026-10-11): Tilework 1.1, Wheelhouse 1.3, Answers 1.1
+- Your Games login name is your name in every game, including games already in progress. Change it any time by tapping your avatar (top right); both phones pick it up within a minute.
+- The games' own "Your name" boxes are gone; they show "Playing as <name>" instead. Tilework pass-and-play still lets you name each seat.
+- How: `GamesApp.nameOf(dev, savedName)` / `GamesApp.fixNames(seats)` in `shim.js` swap in the profile name when a game loads. Saved name fields are unchanged; old log lines keep the name used at the time.
+
 ## Wheelhouse 1.2 (2026-10-11)
 - The clue under the puzzle is twice as big (28px, was 14px).
 
