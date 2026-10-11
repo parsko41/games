@@ -61,7 +61,7 @@
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = '1.0';
+  const APP_VERSION = '1.1';
   const GAMES = ['tilework', 'wheelhouse', 'answers'];
   const EMOJI = ['🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐙','🦉','🐢','🦄','🐝','🐞','🦋','🐬','🐳','🦖','🌵','🌻','🍄','🍕','🍩','⚡','🔥','🌈','⭐','🌙','🚀','🚂','🎸','🎲','📷'];
   const $ = function (id) { return document.getElementById(id); };
@@ -71,7 +71,7 @@
   function toast(t) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2800); }
 
   let player = GamesApp.player;          // {dev, name, avatar} or null
-  let current = lsGet('games-tab');
+  let current = new URLSearchParams(location.search).get('game') || lsGet('games-tab');
   if (GAMES.indexOf(current) < 0) current = 'tilework';
   const frames = {};
 
@@ -110,9 +110,73 @@
     });
     document.title = total ? '(' + total + ') Games' : 'Games';
     try { if (navigator.setAppBadge) total ? navigator.setAppBadge(total) : navigator.clearAppBadge(); } catch (e) {}
+    if (!total && 'serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then(function (r) {
+      if (r && r.getNotifications) r.getNotifications({ tag: 'turn' }).then(function (ns) { ns.forEach(function (n) { n.close(); }); });
+    }).catch(function () {});
   }
   setInterval(refreshDots, 15000);
   document.addEventListener('visibilitychange', refreshDots);
+
+  // ---------- turn alerts ----------
+  // The phone subscribes to push; the Games API pings it when a game starts waiting on this player.
+  // games-push = "<dev> <endpoint>" once alerts are on for this phone.
+  function alertsSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  function alertsOn() { return alertsSupported() && Notification.permission === 'granted' && (lsGet('games-push') || '').split(' ')[0] === (player && player.dev); }
+  function rememberMe() {   // the service worker reads this to ask what's waiting
+    if (!player || !window.caches) return;
+    const api = new URL(window.GAMES_API_URL || '', location.href).href;
+    caches.open('games-me').then(function (c) { return c.put('me.json', new Response(JSON.stringify({ dev: player.dev, api: api }), { headers: { 'Content-Type': 'application/json' } })); }).catch(function () {});
+  }
+  function keyBytes(b64) {
+    const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4));
+    return Uint8Array.from(s, function (c) { return c.charCodeAt(0); });
+  }
+  function subscribe() {
+    let reg;
+    return navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; })
+      .then(function (r) { reg = r; return GamesApp.call('app', 'pushKey', []); })
+      .then(function (key) {
+        return reg.pushManager.getSubscription().then(function (old) {
+          const want = keyBytes(key);
+          const same = old && old.options && old.options.applicationServerKey &&
+            new Uint8Array(old.options.applicationServerKey).join() === want.join();
+          if (same) return old;
+          return (old ? old.unsubscribe() : Promise.resolve()).then(function () {
+            return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
+          });
+        });
+      })
+      .then(function (sub) {
+        const was = (lsGet('games-push') || '').split(' ');
+        const done = function () { lsSet('games-push', player.dev + ' ' + sub.endpoint); rememberMe(); };
+        if (was[0] === player.dev && was[1] === sub.endpoint) { done(); return; }
+        return GamesApp.call('app', 'setPush', [player.dev, sub.toJSON()]).then(done);
+      });
+  }
+  function alertsTurnOn() {
+    return Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') throw new Error('Notifications are blocked. Allow them for this app in Android Settings → Apps → Games → Notifications.');
+      return subscribe();
+    });
+  }
+  function alertsTurnOff() {
+    const was = (lsGet('games-push') || '').split(' ');
+    lsSet('games-push', '');
+    return navigator.serviceWorker.getRegistration().then(function (r) { return r && r.pushManager.getSubscription(); })
+      .then(function (sub) { if (sub) sub.unsubscribe(); })
+      .then(function () { if (was[0] && was[1]) return GamesApp.call('app', 'clearPush', [was[0], was[1]]); });
+  }
+  // On each open: keep the subscription current (it can change, or the player on this phone can).
+  function alertsSync() {
+    rememberMe();
+    const was = (lsGet('games-push') || '').split(' ');
+    if (!alertsSupported() || Notification.permission !== 'granted' || !was[0] || !player) return;
+    const moved = was[0] !== player.dev && was[1] ? GamesApp.call('app', 'clearPush', [was[0], was[1]]).catch(function () {}) : Promise.resolve();
+    moved.then(subscribe).catch(function () {});
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) {
+    if (player && e.data && GAMES.indexOf(e.data.game) >= 0) show(e.data.game);
+  });
 
   // ---------- who's playing ----------
   function newId() { const a = new Uint32Array(2); crypto.getRandomValues(a); return 'p' + a[0].toString(36) + a[1].toString(36); }
@@ -122,6 +186,7 @@
     lsSet('games-me', JSON.stringify(player));
     $('me').textContent = player.avatar || '🙂';
     closeSheet();
+    alertsSync();
     if (changed && Object.keys(frames).length) { location.reload(); return; }   // games read the player when they load
     show(current);
   }
@@ -163,6 +228,11 @@
       '<input id="pName" maxlength="14" placeholder="Your name" value="' + esc((p && p.name) || '') + '" autocomplete="given-name">' +
       '<h3>Avatar</h3><div class="emo" id="emo">' + EMOJI.map(function (e) { return '<button data-e="' + e + '" class="' + (e === pick ? 'on' : '') + '">' + e + '</button>'; }).join('') + '</div>' +
       '<div class="row"><button id="pCancel">' + (isNew ? 'Back' : 'Cancel') + '</button><button class="primary" id="pSave">Save</button></div>' +
+      (isNew ? '' : '<h3>Turn alerts</h3>' + (alertsSupported()
+        ? '<div class="small">A notification (and a dot on the app icon) when a game is waiting on you.</div>' +
+          '<div class="row"><button id="pAlerts">' + (alertsOn() ? '🔕 Turn off' : '🔔 Turn on turn alerts') + '</button>' +
+          (alertsOn() ? '<button id="pTest">Send a test</button>' : '') + '</div>'
+        : '<div class="small">Turn alerts need the installed app (Chrome → Install app).</div>')) +
       (isNew ? '' : '<div class="row"><button id="pSwitch">Switch to another player</button></div>') +
       '<div class="ver">Games ' + APP_VERSION + '</div>');
     $('emo').onclick = function (e) {
@@ -172,6 +242,20 @@
     };
     $('pCancel').onclick = function () { if (isNew) pickSheet(); else closeSheet(); };
     if ($('pSwitch')) $('pSwitch').onclick = pickSheet;
+    if ($('pAlerts')) $('pAlerts').onclick = function () {
+      const on = alertsOn();
+      $('pAlerts').disabled = true;
+      (on ? alertsTurnOff() : alertsTurnOn()).then(function () {
+        toast(on ? 'Turn alerts are off.' : 'Turn alerts are on.');
+        editSheet(player);
+      }, function (err) { $('pAlerts').disabled = false; toast(err.message || String(err)); });
+    };
+    if ($('pTest')) $('pTest').onclick = function () {
+      $('pTest').disabled = true;
+      GamesApp.call('app', 'testPush', [player.dev]).then(function (n) {
+        toast(n ? 'Sent. It should pop up in a few seconds.' : 'Couldn\'t send it. Try turning alerts off and on.');
+      }, function (err) { toast('Couldn\'t send: ' + err.message); }).then(function () { $('pTest').disabled = false; });
+    };
     $('pSave').onclick = function () {
       const name = $('pName').value.trim();
       if (!name) return toast('Enter your name');
@@ -192,7 +276,7 @@
 
   // ---------- start ----------
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
-  if (player) { $('me').textContent = player.avatar || '🙂'; show(current); }
+  if (player) { $('me').textContent = player.avatar || '🙂'; show(current); alertsSync(); }
   else pickSheet();
 })();
 </script>

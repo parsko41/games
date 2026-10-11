@@ -1,5 +1,11 @@
 # Games app: changelog
 
+## Turn alerts (2026-10-11): Games 1.1, Games API 1.1
+- Tap your avatar → Turn alerts → **Turn on turn alerts**. When a game starts waiting on you, your phone gets a "Your move in Wheelhouse" notification, and Android puts a dot on the Games icon. Tapping it opens that game. "Send a test" checks it works.
+- You don't get an alert for your own move. Alerts clear when you open the app and nothing is waiting.
+- Needs the new `server/Code.gs` (Luke: paste, save, Deploy → Manage deployments → pencil → New version). Run `checkAlerts` once in the editor to check it.
+- How: the phone's push subscription is stored in Script Property `PUSH` ({dev: [{endpoint}]}). After each successful save, `notify_()` compares each subscribed player's `overview()` counts with `PUSH_SEEN` and sends an empty Web Push (VAPID ES256, signed in pure JS with BigInt; key in Script Property `VAPID`) to anyone whose count went up, except the caller (`dev` is now sent with every API call by `shim.js`). `sw.js` gets the push, asks `overview()` what's waiting (player id + API link are kept in the `games-me` cache), and shows the notification.
+
 ## Login names everywhere (2026-10-11): Tilework 1.1, Wheelhouse 1.3, Answers 1.1
 - Your Games login name is your name in every game, including games already in progress. Change it any time by tapping your avatar (top right); both phones pick it up within a minute.
 - The games' own "Your name" boxes are gone; they show "Playing as <name>" instead. Tilework pass-and-play still lets you name each seat.

@@ -15,7 +15,7 @@
 
   function call(game, fn, args) {
     if (!API || /PASTE/.test(API)) return Promise.reject(new Error('The app isn\'t connected yet: put the Games API link in config.js.'));
-    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ game: game, fn: fn, args: args }) })
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ game: game, fn: fn, args: args, dev: player && player.dev }) })
       .then(function (r) { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
       .then(function (j) { if (j.error) throw new Error(j.error); return j.result; });
   }

@@ -1,4 +1,4 @@
-// Games API 1.0: one Apps Script that stores the saves for Tilework, Wheelhouse and Answers.
+// Games API 1.1: one Apps Script that stores the saves for Tilework, Wheelhouse and Answers.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Luke's Drive.
 //
@@ -6,7 +6,8 @@
 // approve the permissions, then Deploy → New deployment → Web app,
 // Execute as: Me, Who has access: Anyone. Put the /exec link in config.js on GitHub.
 //
-// Every call is POST {game, fn, args} as text/plain, and the reply is {result} or {error}.
+// Every call is POST {game, fn, args, dev} as text/plain, and the reply is {result} or {error}.
+// dev is the calling phone's player id (so you don't get a turn alert for your own move).
 
 const MAX_GAMES = 5;
 
@@ -31,7 +32,7 @@ function doPost(e) {
   let out;
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    out = { result: dispatch_(req.game, req.fn, req.args || []) };
+    out = { result: dispatch_(req.game, req.fn, req.args || [], req.dev) };
   } catch (err) {
     out = { error: String(err && err.message || err) };
   }
@@ -40,21 +41,29 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.0', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.1', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function dispatch_(game, fn, args) {
+function dispatch_(game, fn, args, who) {
   if (game === 'app') {
     if (fn === 'getProfiles') return getProfiles();
     if (fn === 'setProfile') return setProfile(args[0], args[1], args[2]);
     if (fn === 'overview') return overview(args[0]);
+    if (fn === 'pushKey') return pushKey();
+    if (fn === 'setPush') return setPush(args[0], args[1]);
+    if (fn === 'clearPush') return clearPush(args[0], args[1]);
+    if (fn === 'testPush') return testPush(args[0]);
     throw new Error('Unknown call: ' + fn);
   }
   const g = GAMES[game];
   if (!g) throw new Error('Unknown game: ' + game);
   if (fn === 'getState') return getState_(game, args[0]);
-  if (fn === 'saveState') return saveState_(game, args[0], args[1]);
+  if (fn === 'saveState') {
+    const r = saveState_(game, args[0], args[1]);
+    if (r.ok) { try { notify_(who); } catch (e) { console.warn('Turn alerts: ' + e); } }   // alerts never break a save
+    return r;
+  }
   if (fn === 'closeGame') return closeGame_(game, args[0], args[1]);
   if (g.extra.indexOf(fn) >= 0) {
     if (fn === 'getWords') return getWords();
@@ -216,8 +225,8 @@ function setProfile(dev, name, avatar) {
 
 // How many games are waiting on this player in each game (drives the dots on the app's tabs).
 // A computer player's move counts for the game's host, whose phone plays it.
-function overview(dev) {
-  const props = PropertiesService.getScriptProperties().getProperties();
+function overview(dev, allProps) {
+  const props = allProps || PropertiesService.getScriptProperties().getProperties();
   const out = {};
   Object.keys(GAMES).forEach(function (game) {
     let n = 0;
@@ -239,6 +248,197 @@ function overview(dev) {
   });
   return out;
 }
+
+// ---------- turn alerts (web push) ----------
+// A phone that turns on alerts sends its push subscription here: PUSH = {dev: [subscription, ...]}.
+// After every save, each subscribed player whose count of waiting games went up (PUSH_SEEN keeps
+// the last counts) gets an empty push. The app's service worker then asks overview() what's
+// waiting and shows "Your move in Wheelhouse"; on Android that also puts a dot on the app icon.
+// Pushes are signed (VAPID, ES256) with a key made on first use and kept in Script Properties.
+const PUSH_CONTACT = 'https://parsko41.github.io/games/';
+const MAX_SUBS = 3;   // phones per player
+
+function pushKey() { return vapidKeys_().pub; }
+
+function setPush(dev, sub) {
+  dev = String(dev || '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(dev)) throw new Error('Bad player id');
+  if (!sub || !/^https:\/\/\S+$/.test(String(sub.endpoint || '')) || String(sub.endpoint).length > 1000) throw new Error('Bad subscription');
+  const clean = { endpoint: String(sub.endpoint) };
+  editPush_(function (all, seen) {
+    Object.keys(all).forEach(function (d) {
+      all[d] = all[d].filter(function (s) { return s.endpoint !== clean.endpoint; });
+      if (!all[d].length) delete all[d];
+    });
+    all[dev] = (all[dev] || []).concat([clean]).slice(-MAX_SUBS);
+    seen[dev] = overview(dev);   // only alert for turns that come after this
+  });
+  return true;
+}
+
+function clearPush(dev, endpoint) {
+  editPush_(function (all) {
+    if (!all[dev]) return;
+    all[dev] = all[dev].filter(function (s) { return s.endpoint !== endpoint; });
+    if (!all[dev].length) delete all[dev];
+  });
+  return true;
+}
+
+// Run in the editor to check alerts can work here: makes the key, signs once, lists phones signed up.
+function checkAlerts() {
+  Logger.log('Alert key: ' + pushKey());
+  Logger.log('Signing works: ' + (vapidHeader_('https://fcm.googleapis.com/check').length > 100));
+  Logger.log('Players with alerts on: ' + JSON.stringify(Object.keys(readPush_().all)));
+}
+
+// From the app ("Send a test alert"), or run it in the editor with no player to ping every phone.
+function testPush(dev) {
+  const all = readPush_().all;
+  const devs = dev ? [dev] : Object.keys(all);
+  let sent = 0;
+  devs.forEach(function (d) { sent += sendPush_(d, all[d] || []); });
+  Logger.log('Test alerts sent: ' + sent);
+  return sent;
+}
+
+function readPush_() {
+  const props = PropertiesService.getScriptProperties();
+  return { all: JSON.parse(props.getProperty('PUSH') || '{}'), seen: JSON.parse(props.getProperty('PUSH_SEEN') || '{}') };
+}
+
+function editPush_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const p = readPush_();
+    fn(p.all, p.seen);
+    PropertiesService.getScriptProperties().setProperties({ PUSH: JSON.stringify(p.all), PUSH_SEEN: JSON.stringify(p.seen) });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// After a save: alert everyone (except the player who just moved) who has more games waiting than before.
+function notify_(who) {
+  const props = PropertiesService.getScriptProperties().getProperties();
+  const all = JSON.parse(props.PUSH || '{}');
+  if (!Object.keys(all).length) return;
+  const wake = [];
+  editPush_(function (subs, seen) {
+    Object.keys(subs).forEach(function (dev) {
+      const now = overview(dev, props), was = seen[dev] || {};
+      const up = Object.keys(now).some(function (g) { return now[g] > (was[g] || 0); });
+      if (up && dev !== who) wake.push(dev);
+      seen[dev] = now;
+    });
+  });
+  wake.forEach(function (dev) { sendPush_(dev, all[dev]); });
+}
+
+// Sends an empty push to each of a player's phones; drops phones the push service says are gone.
+function sendPush_(dev, subs) {
+  let sent = 0;
+  const gone = [];
+  (subs || []).forEach(function (s) {
+    try {
+      const res = UrlFetchApp.fetch(s.endpoint, {
+        method: 'post', payload: '', muteHttpExceptions: true,
+        headers: { TTL: '86400', Urgency: 'high', Authorization: vapidHeader_(s.endpoint) }
+      });
+      const code = res.getResponseCode();
+      if (code >= 200 && code < 300) sent++;
+      else if (code === 404 || code === 410) gone.push(s.endpoint);
+      else console.warn('Push ' + code + ': ' + res.getContentText().slice(0, 200));
+    } catch (e) {
+      console.warn('Push failed: ' + e);
+    }
+  });
+  gone.forEach(function (ep) { clearPush(dev, ep); });
+  return sent;
+}
+
+// "vapid t=<signed JWT>, k=<public key>", cached for 6 hours per push service.
+function vapidHeader_(endpoint) {
+  const aud = endpoint.match(/^https:\/\/[^\/]+/)[0];
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('VAPID_' + aud);
+  if (hit) return hit;
+  const keys = vapidKeys_();
+  const enc = function (o) { return b64u_(Utilities.newBlob(JSON.stringify(o)).getBytes()); };
+  const body = enc({ typ: 'JWT', alg: 'ES256' }) + '.' + enc({ aud: aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: PUSH_CONTACT });
+  const header = 'vapid t=' + body + '.' + b64u_(ecSign_(body, keys.d)) + ', k=' + keys.pub;
+  cache.put('VAPID_' + aud, header, 6 * 3600);
+  return header;
+}
+
+// The signing key pair: d (private) and pub (public, base64url), made once.
+function vapidKeys_() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('VAPID');
+  if (saved) { const k = JSON.parse(saved); return { d: BigInt('0x' + k.d), pub: k.pub }; }
+  const seed = [Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid(), Date.now(), Math.random()].join('|');
+  const d = toInt_(sha256_(Utilities.newBlob(seed).getBytes())) % (EC.n - BigInt(1)) + BigInt(1);
+  const Q = ecMul_(d, [EC.gx, EC.gy]);
+  const pub = b64u_([4].concat(toBytes_(Q[0]), toBytes_(Q[1])));
+  props.setProperty('VAPID', JSON.stringify({ d: d.toString(16), pub: pub }));
+  return { d: d, pub: pub };
+}
+
+// ---------- P-256 elliptic curve (Apps Script has no ECDSA, so it's done by hand) ----------
+const EC = {
+  p: BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff'),
+  n: BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551'),
+  gx: BigInt('0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296'),
+  gy: BigInt('0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5')
+};
+function mod_(a, m) { const r = a % m; return r < BigInt(0) ? r + m : r; }
+function inv_(a, m) {         // modular inverse (extended Euclid)
+  let r0 = mod_(a, m), r1 = m, s0 = BigInt(1), s1 = BigInt(0);
+  while (r1 !== BigInt(0)) { const q = r0 / r1; let t = r0 - q * r1; r0 = r1; r1 = t; t = s0 - q * s1; s0 = s1; s1 = t; }
+  return mod_(s0, m);
+}
+function ecAdd_(P, Q) {       // points are [x, y]; null is the point at infinity
+  if (!P) return Q;
+  if (!Q) return P;
+  const p = EC.p;
+  let l;
+  if (P[0] === Q[0]) {
+    if (mod_(P[1] + Q[1], p) === BigInt(0)) return null;
+    l = mod_((BigInt(3) * P[0] * P[0] - BigInt(3)) * inv_(BigInt(2) * P[1], p), p);   // curve a = -3
+  } else {
+    l = mod_((Q[1] - P[1]) * inv_(Q[0] - P[0], p), p);
+  }
+  const x = mod_(l * l - P[0] - Q[0], p);
+  return [x, mod_(l * (P[0] - x) - P[1], p)];
+}
+function ecMul_(k, P) {
+  let R = null, A = P;
+  while (k > BigInt(0)) { if (k & BigInt(1)) R = ecAdd_(R, A); A = ecAdd_(A, A); k >>= BigInt(1); }
+  return R;
+}
+// ES256 signature (r || s, 64 bytes). k comes from HMAC(private key, message hash), so it never repeats.
+function ecSign_(text, d) {
+  const h = sha256_(Utilities.newBlob(text).getBytes()), z = toInt_(h), n = EC.n;
+  for (let c = 0; c < 100; c++) {
+    const k = toInt_(Utilities.computeHmacSha256Signature(h.concat([c]), toBytes_(d))) % n;
+    if (k === BigInt(0)) continue;
+    const r = ecMul_(k, [EC.gx, EC.gy])[0] % n;
+    if (r === BigInt(0)) continue;
+    const s = mod_(inv_(k, n) * (z + r * d), n);
+    if (s === BigInt(0)) continue;
+    return toBytes_(r).concat(toBytes_(s));
+  }
+  throw new Error('Could not sign');
+}
+function sha256_(bytes) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes); }
+function toInt_(bytes) { let x = BigInt(0); for (let i = 0; i < bytes.length; i++) x = (x << BigInt(8)) | BigInt(bytes[i] & 255); return x; }
+function toBytes_(x) {        // 32 bytes, big-endian, as Apps Script's signed bytes
+  const out = [];
+  for (let i = 0; i < 32; i++) { const b = Number(x & BigInt(255)); out.unshift(b > 127 ? b - 256 : b); x >>= BigInt(8); }
+  return out;
+}
+function b64u_(bytes) { return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, ''); }
 
 // ---------- Tilework: word list ----------
 // Collins Scrabble Words 2021 + NASPA Word List 2023, merged (about 280,000 words).

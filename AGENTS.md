@@ -22,7 +22,8 @@ Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`
 - `server/Code.gs` is the **Games API**, a Google Apps Script web app in Luke's Google account.
   It stores every game as a JSON file in Luke's Google Drive (`Games/<Game>/Save data`), keeps the
   player list (`PROFILES`) and turn summaries in Script Properties, and fetches online clues.
-- `sw.js` makes the app installable and forces a fresh copy of every file on each open.
+- `sw.js` makes the app installable, forces a fresh copy of every file on each open, and shows
+  turn alerts (Web Push from the Games API; see the "Turn alerts" entry in `CHANGELOG.md`).
 - `test/` has a local fake server (runs the real Code.gs with a pretend Drive) and an end-to-end
   Playwright test. Optional: only use it if you can run Node.
 
