@@ -1,5 +1,10 @@
 # Games app: changelog
 
+## Answers 1.2 (2026-10-11): bigger text
+- Bigger text everywhere: names, scores, clue, messages, buttons, answer box.
+- Board: each category name is as big as its box allows (`fitBoard()` in the page, narrow font on Android), very long words (11+ letters) can break with a hyphen, and the dollar values all share the biggest size that fits (shown without the comma, e.g. $1200).
+- Long clues step down a size (over 95 and 150 characters) so a turn still fits on the screen.
+
 ## Turn alerts (2026-10-11): Games 1.1, Games API 1.1
 - Tap your avatar → Turn alerts → **Turn on turn alerts**. When a game starts waiting on you, your phone gets a "Your move in Wheelhouse" notification, and Android puts a dot on the Games icon. Tapping it opens that game. "Send a test" checks it works.
 - You don't get an alert for your own move. Alerts clear when you open the app and nothing is waiting.
