@@ -63,18 +63,19 @@
   #clue .tries .t{margin-top:2px}
   #clue .ans{margin-top:6px;font-weight:700;color:var(--gold);text-align:center}
 
-  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin:6px 0;font-size:16px;line-height:1.3}
+  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin:6px 0;font-size:clamp(26px,7.2vw,30px);line-height:1.2}
   #msg .a{color:var(--gold);font-weight:700}
-  #msg .old{display:none;color:var(--dim);font-size:14px}
+  #msg .old{display:none;color:var(--dim);font-size:18px}
 
+  /* the text under the clue grows with the screen: sizes are for 360px wide (Galaxy S24), ~14% bigger at 412px (Pixel 9) */
   #actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:16px}
-  #actions > button{flex:1 1 30%;min-width:90px;padding:12px 12px;font-size:19px}
+  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:clamp(24px,6.67vw,27.5px);line-height:1.2}
+  #actions > button{flex:1 1 30%;min-width:90px;padding:12px 12px;font-size:clamp(30px,8.33vw,34px)}
   .answer{display:flex;gap:6px;width:100%}
-  .answer select{flex:0 0 118px;padding:11px 6px;font-size:17px}
-  .answer input{flex:1;min-width:0;font-size:18px}
+  .answer select{flex:0 0 37%;max-width:150px;padding:11px 6px;font-size:clamp(24px,6.67vw,27.5px)}
+  .answer input{flex:1;min-width:0;font-size:clamp(26px,7.2vw,30px)}
   .btns{display:flex;gap:6px;width:100%}
-  .btns button{flex:1;font-size:18px}
+  .btns button{flex:1;font-size:clamp(30px,8.33vw,34px);padding:14px}
   .btns button.go,.btns button.primary{flex:2}
 
   .ok{color:var(--ok)} .bad{color:var(--red)}
@@ -130,6 +131,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.3', '2026-10-11', 'Much bigger text under the clue (the last move and your instructions) and on the buttons and answer box, a little bigger again on wider phones. The money line is shorter: Right +$400 · Wrong −$400.'],
   ['1.2', '2026-10-11', 'Bigger text everywhere. On the board, each category name and dollar amount is as big as its box allows (a narrower font fits more), and the clue, names, scores and buttons are all larger.'],
   ['1.1', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
   ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first pick is random. New: play against the computer (easy, medium or hard) from the New game screen.'],
@@ -1046,7 +1048,7 @@ function renderActions() {
       a.innerHTML = '<div class="note">' + (done ? 'Your turn is over. ' : '') + 'Waiting for ' + esc(name(pi)) + (cur.at > 0 ? ' to try a steal…' : ' to answer…') + '</div>';
       return;
     }
-    a.innerHTML = '<div class="note">' + (cur.at > 0 ? 'Your chance to steal! ' : '') + (cur.dd ? 'Answer for ' + money(cur.wager) + '.' : 'Right +' + money(cur.wager) + ', wrong -' + money(cur.wager) + '. Passing costs nothing.') + '</div>' +
+    a.innerHTML = '<div class="note">' + (cur.at > 0 ? 'Your chance to steal! ' : '') + (cur.dd ? 'Answer for ' + money(cur.wager) + '.' : 'Right +' + money(cur.wager) + ' · Wrong −' + money(cur.wager)) + '</div>' +
       answerForm('Answer', !cur.dd);
     bindAnswer(respond);
     return;

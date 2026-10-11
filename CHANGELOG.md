@@ -1,5 +1,10 @@
 # Games app: changelog
 
+## Answers 1.3 (2026-10-11): bigger text under the clue
+- The message under the clue (26px), the instructions line (24px), the buttons (30px) and the answer box (24/26px) are about 1.6× bigger. Double was tried but long clues and the phone keyboard wouldn't fit.
+- These sizes are for a 360px-wide screen (Galaxy S24) and grow with the screen (`clamp(…, vw, …)`), about 14% bigger on a 412px-wide Pixel 9.
+- The money line is shorter: "Right +$400 · Wrong −$400" (dropped "Passing costs nothing").
+
 ## Answers 1.2 (2026-10-11): bigger text
 - Bigger text everywhere: names, scores, clue, messages, buttons, answer box.
 - Board: each category name is as big as its box allows (`fitBoard()` in the page, narrow font on Android), very long words (11+ letters) can break with a hyphen, and the dollar values all share the biggest size that fits (shown without the comma, e.g. $1200).
