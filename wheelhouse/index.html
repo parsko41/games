@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wheelhouse</title>
+<style>
+  :root{
+    --bg:#10162b; --panel:#1a2342; --panel2:#222d55; --ink:#eef1ff; --dim:#9aa4c9;
+    --gold:#ffcf4a; --green:#1f8a5b; --green2:#16704a; --tile:#f7f7f2; --blue:#3d7bff;
+    --red:#e5484d; --ok:#35c46a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.primary{background:var(--gold);color:#1b1400;font-weight:700}
+  button.go{background:var(--ok);color:#04210f;font-weight:700}
+  input,select{font:inherit;color:var(--ink);background:#0c1124;border:1px solid #34407a;border-radius:10px;padding:11px 12px;width:100%}
+  #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
+  header{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:34px}
+  header h1{font-size:17px;margin:0;letter-spacing:.3px;color:var(--gold);white-space:nowrap}
+  header h1 small{font-size:10px;color:var(--dim);font-weight:400;margin-left:3px}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:auto}
+
+  /* board */
+  #board{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;padding:8px;background:#0b3d28;border-radius:12px;border:3px solid #2a5;box-shadow:0 0 0 3px #0b3d28 inset}
+  .c{aspect-ratio:5/6;border-radius:3px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:min(5vw,26px);color:#111}
+  .c.x{visibility:hidden}
+  .c.g{background:var(--green)}
+  .c.t{background:var(--tile)}
+  .c.new{background:#6ea0ff;animation:pop .6s}
+  @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+  #catRow{text-align:center;margin:5px 0 0;font-size:14px;line-height:1.3}
+  #cat{font-weight:700;letter-spacing:1px;text-transform:uppercase}
+  #sub{color:var(--dim);font-size:12px;margin-left:8px}
+  #hint{text-align:center;color:var(--dim);font-size:12px}
+
+  /* players */
+  #players{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:6px;margin:6px 0}
+  .p{background:var(--panel);border-radius:10px;padding:4px 8px;border:2px solid transparent;min-width:0;line-height:1.25}
+  .p.on{border-color:var(--gold);background:#2a2a46}
+  .p .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p .bk{font-size:17px;font-weight:800;color:var(--gold)}
+  .p .hd{display:flex;align-items:baseline;gap:4px}
+  .p .hd .nm{flex:1;min-width:0}
+  .p .tt{font-size:11px;color:var(--dim);white-space:nowrap}
+  .p .nm{font-size:14px}
+  .p.me .nm::after{content:" (you)";color:var(--dim);font-weight:400;font-size:12px}
+
+  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:14px;line-height:1.3}
+  #msg .old{display:none}
+  #msg .old{color:var(--dim);font-size:12px}
+
+  /* tabs */
+  #tabs{display:flex;gap:5px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
+  #tabs::-webkit-scrollbar{display:none}
+  #tabs button{flex:0 0 auto;padding:5px 10px;border-radius:999px;font-size:13px;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap}
+  #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
+  #tabs button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
+  #tabs button.add{font-weight:800;color:var(--gold)}
+
+  /* the wheel, laid out as a horizontal strip of value bars */
+  #stripWrap{position:relative;height:var(--sh,76px);overflow:hidden;border-radius:12px;background:#0b1020;border:2px solid #2a3566;margin:0 0 6px}
+  #strip{position:absolute;left:0;top:0;height:100%;display:flex;will-change:transform;transition:transform 4.2s cubic-bezier(.12,.67,.18,1)}
+  .bar{flex:0 0 var(--bw,46px);height:100%;display:flex;align-items:center;justify-content:center;border-right:2px solid #0b1020;writing-mode:vertical-rl;text-orientation:upright;font:800 15px/1 Arial,sans-serif;letter-spacing:-2.5px;color:#111}
+  .bar.word{font-size:9px;letter-spacing:-1.5px;line-height:1.2;writing-mode:vertical-lr}
+  .bar.bk{background:#111;color:#fff}
+  .bar.lt{background:#f4f4f4}
+  .bar.top{background:linear-gradient(#f3d36b,#c9a227)}
+  #frame{position:absolute;top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%);background:var(--gold);box-shadow:0 0 0 1.5px #000c,0 0 8px #000;pointer-events:none;z-index:2;filter:drop-shadow(0 0 1.5px #000)}
+  #frame::before,#frame::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border-left:11px solid transparent;border-right:11px solid transparent}
+  #frame::before{top:0;border-top:15px solid var(--gold)}
+  #frame::after{bottom:0;border-bottom:15px solid var(--gold)}
+  #stripWrap::before,#stripWrap::after{content:"";position:absolute;top:0;bottom:0;width:18%;z-index:1;pointer-events:none}
+  #stripWrap::before{left:0;background:linear-gradient(90deg,#0b1020,#0b102000)}
+  #stripWrap::after{right:0;background:linear-gradient(-90deg,#0b1020,#0b102000)}
+
+  #actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+  #actions button{flex:1 1 30%;min-width:90px;padding:10px 12px}
+  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:13px}
+
+  #keys{display:grid;grid-template-columns:repeat(9,1fr);gap:5px}
+  #keys button{padding:9px 0;font-weight:800;font-size:16px;border-radius:8px}
+  #keys button.v{background:#3b2f6b}
+  #keys button.sel{background:var(--gold);color:#1b1400}
+  #keys button.used{opacity:.15}
+
+  .card{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:18px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .row label{flex:0 0 96px;color:var(--dim);font-size:14px}
+  .seat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3566}
+  .small{font-size:13px;color:var(--dim)}
+  .big{font-size:22px;font-weight:800;color:var(--gold)}
+  .center{text-align:center}
+
+  #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:85vh;overflow:auto}
+  #sheet h3{margin:4px 0 10px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;font-size:14px;z-index:20;display:none;max-width:90vw}
+  .ver{font-size:11px;color:var(--dim);text-align:center;margin-top:16px}
+  .hidden{display:none !important}
+  /* wider screens: a little wider, everything a bit tighter, 2-row keyboard */
+  @media (min-width:700px){
+    #app{max-width:760px;padding-bottom:40px}
+    #board{max-width:620px;margin:0 auto}
+    .c{font-size:26px}
+    #keys{grid-template-columns:repeat(13,1fr);gap:5px}
+    #keys button{padding:9px 0;font-size:16px}
+    #msg .old{display:block}
+    #stripWrap{--sh:96px}
+    .bar{flex-basis:54px;font-size:18px;letter-spacing:-3px}
+    .bar.word{font-size:10.5px;letter-spacing:-1.5px}
+    #frame{width:3px}
+  }
+  @media (min-width:700px) and (max-height:820px){
+    #board{max-width:520px}
+    .c{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Wheelhouse<small id="ver"></small></h1>
+    <div id="tabs"></div>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="lobby"></div>
+  <div id="game" class="hidden">
+    <div id="board"></div>
+    <div id="catRow"><span id="cat"></span><span id="sub"></span></div>
+    <div id="hint"></div>
+    <div id="players"></div>
+    <div id="msg"></div>
+    <div id="stripWrap"><div id="strip"></div><div id="frame"></div></div>
+    <div id="actions"></div>
+    <div id="keys"></div>
+  </div>
+</div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="../shim.js" data-game="wheelhouse"></script>
+<script>
+// ---------- versions (bump on every change) ----------
+const VERSIONS = [
+  ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first spinner is chosen at random. Same game otherwise.'],
+  ['v4', '2026-10-03', 'The puzzle answer is now scrambled in the save file on Drive, so peeking at the file doesn\'t give it away. A game already in progress gets scrambled on its next move.'],
+  ['v3', '2026-10-03', 'Tighter phone layout so a whole turn fits without scrolling: tabs sit in the header, slimmer player boxes, one-line messages (more under ☰ → Recent), a shorter value strip, and a 3-row keyboard.'],
+  ['v2', '2026-10-03', 'Up to 5 games at once, each in its own tab at the top (a green dot means it\'s your move there). ☰ → Close this game frees a tab. The wheel is now a strip of value bars that slides past a pointer, which saves a lot of space. Tighter layout that fits a desktop browser.'],
+  ['v1', '2026-10-03', 'First version: 2–3 players, spinning wheel, buy vowels, solve, Bankrupt / Lose a Turn, multiple rounds, bonus round. Puzzles from a built-in list plus "online" puzzles from Wikipedia\'s most-read articles.']
+];
+
+// ---------- built-in puzzles: "Category|PHRASE" ----------
+const PUZZLES = `
+Phrase|BETTER LATE THAN NEVER
+Phrase|BREAK A LEG
+Phrase|BITE THE BULLET
+Phrase|THE BALL IS IN YOUR COURT
+Phrase|EASY COME EASY GO
+Phrase|ACTIONS SPEAK LOUDER THAN WORDS
+Phrase|EVERY CLOUD HAS A SILVER LINING
+Phrase|HIT THE NAIL ON THE HEAD
+Phrase|ONCE IN A BLUE MOON
+Phrase|CURIOSITY KILLED THE CAT
+Phrase|DON'T COUNT YOUR CHICKENS
+Phrase|THE EARLY BIRD GETS THE WORM
+Phrase|PIECE OF CAKE
+Phrase|COST AN ARM AND A LEG
+Phrase|BURNING THE MIDNIGHT OIL
+Phrase|LET THE CAT OUT OF THE BAG
+Phrase|SPILL THE BEANS
+Phrase|UNDER THE WEATHER
+Phrase|BACK TO SQUARE ONE
+Phrase|CALL IT A DAY
+Phrase|CUT TO THE CHASE
+Phrase|GO THE EXTRA MILE
+Phrase|HANG IN THERE
+Phrase|IT TAKES TWO TO TANGO
+Phrase|KILL TWO BIRDS WITH ONE STONE
+Phrase|NO PAIN NO GAIN
+Phrase|ON THE SAME PAGE
+Phrase|PRACTICE MAKES PERFECT
+Phrase|ROME WASN'T BUILT IN A DAY
+Phrase|THE BEST OF BOTH WORLDS
+Phrase|TIME FLIES WHEN YOU'RE HAVING FUN
+Phrase|WHEN PIGS FLY
+Phrase|YOU CAN'T JUDGE A BOOK BY ITS COVER
+Phrase|BARKING UP THE WRONG TREE
+Phrase|BEAT AROUND THE BUSH
+Phrase|A BLESSING IN DISGUISE
+Phrase|THE WHOLE NINE YARDS
+Phrase|SLEEP ON IT
+Phrase|THROW IN THE TOWEL
+Phrase|WORTH ITS WEIGHT IN GOLD
+Phrase|KEEP YOUR CHIN UP
+Phrase|LIGHT AT THE END OF THE TUNNEL
+Phrase|OUT OF THE BLUE
+Phrase|GREAT MINDS THINK ALIKE
+Phrase|HOME SWEET HOME
+Phrase|MONEY DOESN'T GROW ON TREES
+Phrase|NOTHING VENTURED NOTHING GAINED
+Phrase|ALL'S WELL THAT ENDS WELL
+Phrase|BIRDS OF A FEATHER FLOCK TOGETHER
+Phrase|FORTUNE FAVORS THE BOLD
+Thing|A BOX OF CRAYONS
+Thing|ROLLER SKATES
+Thing|A STACK OF PANCAKES
+Thing|GRANDFATHER CLOCK
+Thing|HOT AIR BALLOON
+Thing|SWISS ARMY KNIFE
+Thing|ROCKING CHAIR
+Thing|TELESCOPE
+Thing|A JAR OF PICKLES
+Thing|SNOW GLOBE
+Thing|WIND CHIMES
+Thing|JIGSAW PUZZLE
+Thing|CROSSWORD PUZZLE
+Thing|PAPER AIRPLANE
+Thing|TREASURE CHEST
+Thing|MAGNIFYING GLASS
+Thing|SOLDERING IRON
+Thing|DIGITAL CAMERA
+Thing|TRIPOD
+Thing|CIRCUIT BOARD
+Thing|THREE-RING BINDER
+Thing|FIRST AID KIT
+Thing|SLEEPING BAG
+Thing|CAMPING STOVE
+Thing|COMPASS AND MAP
+Thing|FLASHLIGHT BATTERIES
+Thing|ELECTRIC GUITAR
+Thing|GRAND PIANO
+Thing|VINTAGE TYPEWRITER
+Thing|GARDEN HOSE
+Around the House|KITCHEN SINK
+Around the House|LINEN CLOSET
+Around the House|WELCOME MAT
+Around the House|SPICE RACK
+Around the House|THROW PILLOWS
+Around the House|BOOKSHELF
+Around the House|COFFEE TABLE
+Around the House|CEILING FAN
+Around the House|DISHWASHER
+Around the House|SMOKE DETECTOR
+Around the House|BUNK BEDS
+Around the House|LAUNDRY BASKET
+Around the House|JUNK DRAWER
+Around the House|FRONT PORCH SWING
+Around the House|REFRIGERATOR MAGNETS
+Food & Drink|PEANUT BUTTER AND JELLY
+Food & Drink|SPAGHETTI AND MEATBALLS
+Food & Drink|CHOCOLATE CHIP COOKIES
+Food & Drink|FRESH SQUEEZED LEMONADE
+Food & Drink|GRILLED CHEESE SANDWICH
+Food & Drink|CLAM CHOWDER
+Food & Drink|SOURDOUGH BREAD
+Food & Drink|BANANA SPLIT
+Food & Drink|CINNAMON ROLLS
+Food & Drink|FISH TACOS
+Food & Drink|BLUEBERRY MUFFINS
+Food & Drink|MACARONI AND CHEESE
+Food & Drink|HOT FUDGE SUNDAE
+Food & Drink|ICED COFFEE
+Food & Drink|GARLIC MASHED POTATOES
+Food & Drink|STRAWBERRY SHORTCAKE
+Food & Drink|CHICKEN NOODLE SOUP
+Food & Drink|BUTTERED POPCORN
+Food & Drink|PEPPERONI PIZZA
+Food & Drink|APPLE PIE A LA MODE
+Food & Drink|FRENCH ONION SOUP
+Food & Drink|BURRITO BOWL
+Food & Drink|DIM SUM
+Food & Drink|PAD THAI
+Place|SAN FRANCISCO BAY
+Place|GOLDEN GATE BRIDGE
+Place|YOSEMITE VALLEY
+Place|GRAND CANYON
+Place|NIAGARA FALLS
+Place|DEATH VALLEY
+Place|LAKE TAHOE
+Place|MOUNT RUSHMORE
+Place|THE GREAT WALL OF CHINA
+Place|EIFFEL TOWER
+Place|TIMES SQUARE
+Place|CENTRAL PARK
+Place|BIG SUR
+Place|NAPA VALLEY
+Place|COUNTY FAIR
+Place|TRAIN STATION
+Place|PUBLIC LIBRARY
+Place|HARDWARE STORE
+Place|FARMERS MARKET
+Place|BOWLING ALLEY
+Place|MINIATURE GOLF COURSE
+Place|ICE SKATING RINK
+Place|AMUSEMENT PARK
+Place|MOVIE THEATER
+Place|DOG PARK
+On the Map|ALASKA
+On the Map|NEW ZEALAND
+On the Map|ICELAND
+On the Map|SOUTH AFRICA
+On the Map|BUENOS AIRES
+On the Map|RIO DE JANEIRO
+On the Map|AMSTERDAM
+On the Map|THE ROCKY MOUNTAINS
+On the Map|THE MISSISSIPPI RIVER
+On the Map|THE PACIFIC OCEAN
+On the Map|MADAGASCAR
+On the Map|HONG KONG
+On the Map|SALT LAKE CITY
+On the Map|LAS VEGAS
+On the Map|NEW ORLEANS
+Event|BIRTHDAY PARTY
+Event|FAMILY REUNION
+Event|SURPRISE PARTY
+Event|BLOCK PARTY
+Event|ROAD TRIP
+Event|HIGH SCHOOL REUNION
+Event|GRADUATION CEREMONY
+Event|SUMMER VACATION
+Event|FOURTH OF JULY FIREWORKS
+Event|SUPER BOWL SUNDAY
+Event|THANKSGIVING DINNER
+Event|NEW YEAR'S EVE
+Event|TOTAL SOLAR ECLIPSE
+Event|BACKYARD BARBECUE
+Event|GAME NIGHT
+Event|POTLUCK DINNER
+Event|SPELLING BEE
+Event|SCIENCE FAIR
+Event|TALENT SHOW
+Event|GARAGE SALE
+Fun & Games|HIDE AND SEEK
+Fun & Games|TIC-TAC-TOE
+Fun & Games|CONNECT THE DOTS
+Fun & Games|MUSICAL CHAIRS
+Fun & Games|SCAVENGER HUNT
+Fun & Games|THUMB WRESTLING
+Fun & Games|ROCK PAPER SCISSORS
+Fun & Games|CHARADES
+Fun & Games|JUMP ROPE
+Fun & Games|SKIPPING STONES
+Fun & Games|FLYING A KITE
+Fun & Games|BUILDING A SANDCASTLE
+What Are You Doing?|TAKING A NAP
+What Are You Doing?|WALKING THE DOG
+What Are You Doing?|CATCHING THE TRAIN
+What Are You Doing?|READING A GOOD BOOK
+What Are You Doing?|HIKING UP A MOUNTAIN
+What Are You Doing?|PITCHING A TENT
+What Are You Doing?|BAKING BREAD
+What Are You Doing?|TAKING PHOTOGRAPHS
+What Are You Doing?|FIXING A LEAKY FAUCET
+What Are You Doing?|SOLDERING A CIRCUIT
+What Are You Doing?|WATCHING THE SUNSET
+What Are You Doing?|FOLDING LAUNDRY
+What Are You Doing?|PLANTING TOMATOES
+What Are You Doing?|STARGAZING
+What Are You Doing?|RIDING A BIKE
+What Are You Doing?|BUILDING A ROBOT
+What Are You Doing?|DOING THE CROSSWORD
+What Are You Doing?|SINGING IN THE SHOWER
+Living Thing|GOLDEN RETRIEVER
+Living Thing|BALD EAGLE
+Living Thing|GIANT SEQUOIA
+Living Thing|HUMMINGBIRD
+Living Thing|SEA OTTER
+Living Thing|MONARCH BUTTERFLY
+Living Thing|HOUSE CAT
+Living Thing|BLUE WHALE
+Living Thing|MOUNTAIN LION
+Living Thing|SUNFLOWERS
+Living Thing|POISON OAK
+Living Thing|CALIFORNIA POPPY
+Living Thing|GREAT WHITE SHARK
+Living Thing|EMPEROR PENGUIN
+Occupation|FIREFIGHTER
+Occupation|AIRLINE PILOT
+Occupation|ROCKET SCIENTIST
+Occupation|PARK RANGER
+Occupation|ELECTRICAL ENGINEER
+Occupation|PASTRY CHEF
+Occupation|TRAIN CONDUCTOR
+Occupation|WEDDING PHOTOGRAPHER
+Occupation|VETERINARIAN
+Occupation|SCHOOL TEACHER
+Rhyme Time|FAT CAT
+Rhyme Time|NIGHT LIGHT
+Rhyme Time|BRAIN DRAIN
+Rhyme Time|GO WITH THE FLOW
+Rhyme Time|SNUG AS A BUG IN A RUG
+Rhyme Time|FUN IN THE SUN
+Rhyme Time|HIGH AND DRY
+Rhyme Time|WEAR AND TEAR
+Before & After|PEANUT BUTTER CUP OF COFFEE
+Before & After|BIRTHDAY CAKE WALK
+Before & After|SPELLING BEE STING
+Before & After|FIRE DRILL SERGEANT
+Before & After|TRAIN STATION WAGON
+Before & After|HOT DOG PARK RANGER
+Before & After|BOOK CLUB SANDWICH
+Before & After|DOOR BELL PEPPERS
+Before & After|SUN FLOWER POWER
+Before & After|COFFEE TABLE TENNIS
+Same Letter|BIG BLUE BALLOONS
+Same Letter|PETER PIPER PICKED PEPPERS
+Same Letter|SALTY SEA SPRAY
+Same Letter|CRISPY CRUNCHY CROUTONS
+Same Letter|MAGNIFICENT MOUNTAIN MEADOWS
+`.trim().split('\n').map(function (l) { const i = l.indexOf('|'); return { cat: l.slice(0, i), text: l.slice(i + 1).trim() }; });
+
+// ---------- wheel ----------
+// 24 wedges, wedge 0 at the top, clockwise. B = Bankrupt, L = Lose a Turn.
+function wedges(round) {
+  const top = round <= 1 ? 2500 : round === 2 ? 3500 : 5000;
+  return [top, 600, 400, 300, 'B', 800, 350, 450, 700, 300, 600, 'L',
+          500, 300, 650, 'B', 900, 500, 400, 550, 800, 300, 700, 500];
+}
+const WEDGE_COLORS = ['#e5484d', '#f59e0b', '#facc15', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+const VOWELS = 'AEIOU', BONUS_GIVEN = 'RSTLNE', VOWEL_COST = 250, MAX_SEATS = 2;
+const BONUS_PRIZES = [25000, 30000, 35000, 40000, 45000, 50000, 100000];
+
+// ---------- device / local state ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let DEV = lsGet('wheelhouse-device');
+if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('wheelhouse-device', DEV); }
+
+let S = null;            // current game state (from server)
+let busy = false;        // waiting on a save
+let mode = null;         // local UI mode: 'vowel' | null
+let bonusSel = [];       // letters picked locally during the bonus round
+let spinSeen = -1;       // last spin number already animated
+let spinning = false;    // wheel animation running
+let stripPos = 24.5;     // which bar (in bar units) sits under the pointer, local only
+let lastTurnKey = '';
+const MAX_GAMES = 5;
+let curSlot = Math.min(Math.max(parseInt(lsGet('wheelhouse-slot') || '0', 10) || 0, 0), MAX_GAMES - 1);
+let GAMES = [];          // summaries of every tab's game, from the server
+let loaded = false;      // have we heard from the server for this tab yet
+
+const $ = function (id) { return document.getElementById(id); };
+const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const money = function (n) { return '$' + Number(n || 0).toLocaleString('en-US'); };
+const av = function (p) { return window.GamesApp ? esc(GamesApp.avatar(p.dev, p.name)) : ''; };
+
+// ---------- server ----------
+// The answer is never saved as plain text: puzzle.text lives only in memory, and the save file
+// holds puzzle.enc (the text XORed with a keystream seeded by the game id, then base64).
+// Not real security, just enough that peeking at the Drive file doesn't give it away.
+function keystream(seed, n) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const out = [];
+  for (let i = 0; i < n; i++) { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; out.push(h & 255); }
+  return out;
+}
+function encText(t, seed) {
+  const k = keystream('wh:' + seed, t.length);
+  let b = '';
+  for (let i = 0; i < t.length; i++) b += String.fromCharCode((t.charCodeAt(i) & 255) ^ k[i]);
+  return btoa(b);
+}
+function decText(e, seed) {
+  const b = atob(e), k = keystream('wh:' + seed, b.length);
+  let t = '';
+  for (let i = 0; i < b.length; i++) t += String.fromCharCode(b.charCodeAt(i) ^ k[i]);
+  return t;
+}
+function hide(ns) {           // copy for saving: answer encoded, plain text dropped
+  const out = JSON.parse(JSON.stringify(ns));
+  if (out.puzzle && typeof out.puzzle.text === 'string') { out.puzzle.enc = encText(out.puzzle.text, out.gid); delete out.puzzle.text; }
+  return out;
+}
+function reveal(st) {         // after loading: decode the answer back into puzzle.text
+  if (st && st.puzzle && st.puzzle.enc && typeof st.puzzle.text !== 'string') {
+    try { st.puzzle.text = decText(st.puzzle.enc, st.gid); } catch (e) { st.puzzle.text = ''; }
+  }
+  return st;
+}
+
+// Every call is tagged with the tab it was for; answers for a tab we've since left are ignored.
+const store = {
+  get: function (cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { if (slot !== curSlot) return; GAMES = r.games || GAMES; cb(reveal(r.state)); })
+      .withFailureHandler(function () { if (slot === curSlot) cb(undefined); }).getState(slot);
+  },
+  save: function (ns, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot !== curSlot) { busy = false; renderTabs(); return; } cb(r.ok, reveal(r.state)); })
+      .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
+      .saveState(JSON.stringify(hide(ns)), slot);
+  },
+  close: function (gid, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
+      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
+  },
+  online: function (cb) { google.script.run.withSuccessHandler(cb).withFailureHandler(function () { cb(null); }).getTrendingPuzzle(); }
+};
+
+function commit(ns, after) {
+  if (busy) return;
+  busy = true; render();
+  store.save(ns, function (ok, saved) {
+    busy = false;
+    if (!ok && saved !== undefined) toast('Someone moved first, so the game refreshed.');
+    if (saved !== undefined) apply(saved);
+    else render();
+    if (ok && after) after();
+  });
+}
+
+function switchTab(i) {
+  if (i === curSlot || busy || spinning) return;
+  curSlot = i; lsSet('wheelhouse-slot', String(i));
+  S = null; loaded = false; spinSeen = -1; mode = null; bonusSel = []; lastTurnKey = '';
+  closeSheet();
+  render();
+  store.get(function (st) { if (st !== undefined) apply(st); });
+}
+function tabInfo(g) {
+  if (!g) return { label: 'New game', dot: false };
+  const mine = g.devs.indexOf(DEV) >= 0;
+  if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
+  const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
+  const label = mine ? 'vs ' + others.join(' & ') : g.names.join(' & ');
+  const dot = mine && (g.act === DEV || g.act === '*');
+  return { label: (g.status === 'over' ? '✓ ' : '') + label, dot: dot };
+}
+function renderTabs() {
+  const used = [];
+  for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
+  const free = GAMES.length ? (function () { for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) return i; return -1; })() : -1;
+  if (used.length <= 1 && !GAMES[curSlot]) { $('tabs').innerHTML = ''; return; }
+  $('tabs').innerHTML = used.map(function (i) {
+    const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '">' + esc(t.label) + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+  }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
+}
+$('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
+
+function next() {           // copy of S with moveNo bumped
+  const ns = JSON.parse(JSON.stringify(S));
+  ns.moveNo = S.moveNo + 1;
+  return ns;
+}
+
+function poll() {
+  if (busy || document.hidden) return;
+  store.get(function (st) { if (st !== undefined && !busy) apply(st); });
+}
+
+function apply(st) {
+  const firstLoad = !loaded;
+  const changed = firstLoad || (!S !== !st) || (S && st && (st.gid !== S.gid || st.moveNo !== S.moveNo));
+  const sameGame = S && st && S.gid === st.gid;
+  loaded = true;
+  S = st;
+  renderTabs();
+  if (!changed) return;
+  if (st && st.spin) {
+    if (firstLoad || !sameGame || spinSeen < 0) { spinSeen = st.spin.n; setWheel(st.spin, false); }
+    else if (st.spin.n > spinSeen) { spinSeen = st.spin.n; setWheel(st.spin, true); }
+  }
+  if (S && S.status !== 'bonus') bonusSel = [];
+  mode = null;
+  render();
+  buzzIfMyTurn();
+}
+
+// ---------- helpers ----------
+function me() { return S && S.players ? S.players.findIndex(function (p) { return p.dev === DEV; }) : -1; }
+function myTurn() { return S && S.status === 'play' && me() === S.turn; }
+function lettersIn(text) { return text.replace(/[^A-Z]/g, ''); }
+function count(text, L) { return text.split('').filter(function (c) { return c === L; }).length; }
+function hiddenLeft(kind) { // remaining unrevealed consonants / vowels in the puzzle
+  const set = {};
+  lettersIn(S.puzzle.text).split('').forEach(function (c) {
+    if (S.guessed.indexOf(c) < 0 && (kind === 'v') === (VOWELS.indexOf(c) >= 0)) set[c] = 1;
+  });
+  return Object.keys(set).length;
+}
+function norm(s) { return String(s).toUpperCase().replace(/&/g, 'AND').replace(/[^A-Z]/g, ''); }
+function name(i) { return S.players[i] ? S.players[i].name : '?'; }
+function addLog(ns, line) { ns.log = [line].concat(ns.log || []).slice(0, 8); }
+function advance(ns) { ns.turn = (ns.turn + 1) % ns.players.length; ns.phase = 'spin'; ns.spinVal = 0; }
+function wedgeLabel(w) { return w === 'B' ? 'BANKRUPT' : w === 'L' ? 'LOSE A TURN' : money(w); }
+
+// Fit a phrase onto the 12/14/14/12 board. Returns 4 rows of 14 cells (null = unused) or null.
+function layout(text) {
+  const words = text.split(' ');
+  const plans = [{ rows: [1], caps: [14] }, { rows: [1, 2], caps: [14, 14] },
+                 { rows: [0, 1, 2], caps: [12, 14, 14] }, { rows: [0, 1, 2, 3], caps: [12, 14, 14, 12] }];
+  for (let k = 0; k < plans.length; k++) {
+    const pl = plans[k], lines = [];
+    let cur = '', ok = true;
+    for (let i = 0; i < words.length && ok; i++) {
+      const w = words[i];
+      const cap = pl.caps[lines.length];
+      if (cap === undefined || w.length > cap) { ok = false; break; }
+      if (!cur) cur = w;
+      else if (cur.length + 1 + w.length <= cap) cur += ' ' + w;
+      else { lines.push(cur); cur = w; if (lines.length >= pl.caps.length || w.length > pl.caps[lines.length]) ok = false; }
+    }
+    if (!ok) continue;
+    lines.push(cur);
+    if (lines.length > pl.caps.length) continue;
+    const grid = [0, 1, 2, 3].map(function () { return new Array(14).fill(null); });
+    lines.forEach(function (ln, i) {
+      const r = pl.rows[i], start = (r === 0 || r === 3) ? 1 : 0;
+      const off = start + Math.floor((pl.caps[i] - ln.length) / 2);
+      for (let j = 0; j < ln.length; j++) grid[r][off + j] = ln[j] === ' ' ? null : ln[j];
+    });
+    return grid;
+  }
+  return null;
+}
+
+// ---------- puzzles ----------
+function pickBuiltIn(ns) {
+  ns.used = ns.used || [];
+  let pool = PUZZLES.map(function (p, i) { return i; }).filter(function (i) { return ns.used.indexOf(i) < 0; });
+  if (!pool.length) { ns.used = []; pool = PUZZLES.map(function (p, i) { return i; }); }
+  const i = pool[Math.floor(Math.random() * pool.length)];
+  ns.used.push(i);
+  return { text: PUZZLES[i].text.replace(/\s*\?$/, ''), cat: PUZZLES[i].cat, hint: '', src: 'built-in' };
+}
+function getPuzzle(ns, allowOnline, cb) {
+  const src = ns.settings.source;
+  const tryOnline = allowOnline && (src === 'online' || (src === 'mixed' && Math.random() < 0.4));
+  if (!tryOnline) return cb(pickBuiltIn(ns));
+  store.online(function (p) {
+    if (p && p.text && layout(p.text) && lettersIn(p.text).length >= 6) cb(p);
+    else cb(pickBuiltIn(ns));
+  });
+}
+
+// ---------- actions ----------
+function newGame(nm, settings) {
+  const ns = {
+    app: 'wheelhouse', gid: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), moveNo: 0,
+    status: 'lobby', settings: settings, players: [{ dev: DEV, name: nm, bank: 0, total: 0 }],
+    round: 0, turn: 0, starter: 0, puzzle: null, guessed: [], phase: 'spin', spinVal: 0,
+    spin: { n: 0, idx: 0, jit: 0 }, log: [nm + ' started a new game.'], used: [], bonus: null, last: ''
+  };
+  commit(ns);
+}
+function closeGame() {
+  if (!S || busy) return;
+  busy = true; render();
+  store.close(S.gid, function (st) { busy = false; apply(st); toast('Game closed. This tab is free.'); });
+}
+function rematch() {
+  const ns = next();
+  ns.gid = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  ns.moveNo = 0;
+  ns.players.forEach(function (p) { p.bank = 0; p.total = 0; });
+  ns.round = 0; ns.starter = ns.players.length - 1; ns.bonus = null; ns.log = []; ns.spin = { n: 0, idx: 0, jit: 0 };
+  ns.status = 'lobby';
+  startRound(ns);
+}
+function join(nm) {
+  if (S.players.length >= MAX_SEATS) return;
+  const ns = next();
+  ns.players.push({ dev: DEV, name: nm, bank: 0, total: 0 });
+  addLog(ns, nm + ' joined.');
+  commit(ns);
+}
+function claimSeat(i) {
+  const ns = next();
+  ns.players[i].dev = DEV;
+  addLog(ns, ns.players[i].name + ' is now playing on this phone.');
+  commit(ns);
+}
+function startRound(ns) {             // ns already bumped; fetches a puzzle then saves
+  busy = true; render();
+  getPuzzle(ns, true, function (pz) {
+    busy = false;
+    ns.round += 1;
+    ns.status = 'play';
+    ns.puzzle = pz; ns.guessed = []; ns.phase = 'spin'; ns.spinVal = 0; ns.last = '';
+    ns.players.forEach(function (p) { p.bank = 0; });
+    ns.starter = (ns.starter + 1) % ns.players.length;
+    if (ns.round === 1) ns.starter = Math.floor(Math.random() * ns.players.length);   // who goes first is random
+    ns.turn = ns.starter;
+    addLog(ns, 'Round ' + ns.round + ' of ' + ns.settings.rounds + ': ' + pz.cat + '. ' + ns.players[ns.turn].name + ' spins first.');
+    commit(ns);
+  });
+}
+function nextRound() {
+  const ns = next();
+  if (ns.round >= ns.settings.rounds) return startBonus(ns);
+  startRound(ns);
+}
+function startBonus(ns) {
+  let lead = 0;
+  ns.players.forEach(function (p, i) { if (p.total > ns.players[lead].total) lead = i; });
+  const pz = pickBuiltIn(ns);
+  ns.status = 'bonus';
+  ns.puzzle = pz; ns.guessed = BONUS_GIVEN.split(''); ns.last = '';
+  ns.bonus = { p: lead, stage: 'pick', picks: [], prize: BONUS_PRIZES[Math.floor(Math.random() * BONUS_PRIZES.length)], won: false, guess: '' };
+  addLog(ns, 'Bonus round! ' + ns.players[lead].name + ' leads with ' + money(ns.players[lead].total) + '. R S T L N E are free.');
+  commit(ns);
+}
+
+function spin() {
+  if (!myTurn() || S.phase !== 'spin' || spinning) return;
+  const ns = next();
+  const w = wedges(ns.round);
+  const idx = Math.floor(Math.random() * w.length);
+  const jit = Math.round((Math.random() * 10 - 5) * 10) / 10;
+  ns.spin = { n: (S.spin.n || 0) + 1, idx: idx, jit: jit };
+  const v = w[idx], p = ns.players[ns.turn];
+  if (v === 'B') { p.bank = 0; addLog(ns, p.name + ' hit BANKRUPT and lost this round\'s money.'); advance(ns); }
+  else if (v === 'L') { addLog(ns, p.name + ' spun LOSE A TURN.'); advance(ns); }
+  else { ns.phase = 'consonant'; ns.spinVal = v; addLog(ns, p.name + ' spun ' + money(v) + ' and is picking a consonant.'); }
+  commit(ns);
+}
+function callConsonant(L) {
+  if (!myTurn() || S.phase !== 'consonant' || S.guessed.indexOf(L) >= 0 || VOWELS.indexOf(L) >= 0) return;
+  const ns = next(), p = ns.players[ns.turn];
+  ns.guessed.push(L); ns.last = L;
+  const n = count(ns.puzzle.text, L);
+  if (n) {
+    p.bank += n * ns.spinVal;
+    addLog(ns, p.name + ': ' + n + ' ' + L + (n > 1 ? '\'s' : '') + ', +' + money(n * ns.spinVal) + '.');
+    ns.phase = 'spin'; ns.spinVal = 0;
+  } else { addLog(ns, p.name + ': no ' + L + '.'); advance(ns); }
+  commit(ns);
+}
+function buyVowel(V) {
+  if (!myTurn() || S.phase !== 'spin' || S.guessed.indexOf(V) >= 0 || VOWELS.indexOf(V) < 0) return;
+  const ns = next(), p = ns.players[ns.turn];
+  if (p.bank < VOWEL_COST) return;
+  p.bank -= VOWEL_COST; ns.guessed.push(V); ns.last = V;
+  const n = count(ns.puzzle.text, V);
+  if (n) addLog(ns, p.name + ' bought an ' + V + ': ' + n + ' of them.');
+  else { addLog(ns, p.name + ' bought an ' + V + ': none.'); advance(ns); }
+  commit(ns);
+}
+function solve(attempt) {
+  if (!myTurn() || S.phase !== 'spin') return;
+  const ns = next(), p = ns.players[ns.turn];
+  if (norm(attempt) === norm(ns.puzzle.text)) {
+    const won = Math.max(p.bank, 1000);
+    p.total += won;
+    ns.guessed = lettersIn(ns.puzzle.text).split('').filter(function (c, i, a) { return a.indexOf(c) === i; }).concat(ns.guessed);
+    ns.status = 'roundEnd'; ns.winner = ns.turn; ns.last = '';
+    addLog(ns, p.name + ' solved it and banks ' + money(won) + '!');
+  } else {
+    addLog(ns, p.name + ' guessed "' + attempt.toUpperCase() + '". Not quite.');
+    advance(ns);
+  }
+  commit(ns);
+}
+function bonusLock() {
+  if (!S.bonus || me() !== S.bonus.p || S.bonus.stage !== 'pick') return;
+  const c = bonusSel.filter(function (l) { return VOWELS.indexOf(l) < 0; }), v = bonusSel.filter(function (l) { return VOWELS.indexOf(l) >= 0; });
+  if (c.length !== 3 || v.length !== 1) return;
+  const ns = next();
+  ns.bonus.picks = bonusSel.slice(); ns.bonus.stage = 'solve';
+  ns.guessed = ns.guessed.concat(bonusSel); ns.last = '';
+  addLog(ns, ns.players[ns.bonus.p].name + ' picked ' + bonusSel.join(' ') + '.');
+  bonusSel = [];
+  commit(ns);
+}
+function bonusSolve(attempt) {
+  if (!S.bonus || me() !== S.bonus.p || S.bonus.stage !== 'solve') return;
+  const ns = next(), b = ns.bonus, p = ns.players[b.p];
+  b.guess = attempt.toUpperCase();
+  b.won = norm(attempt) === norm(ns.puzzle.text);
+  b.stage = 'done';
+  ns.guessed = lettersIn(ns.puzzle.text).split('');
+  if (b.won) { p.total += b.prize; addLog(ns, p.name + ' solved the bonus puzzle and wins ' + money(b.prize) + '!'); }
+  else addLog(ns, p.name + ' guessed "' + b.guess + '". The envelope held ' + money(b.prize) + '.');
+  ns.status = 'over';
+  commit(ns);
+}
+
+// ---------- wheel drawing ----------
+function drawStrip(round) {
+  const w = wedges(round || 1);
+  let h = '';
+  for (let k = 0; k < 8; k++) for (let i = 0; i < 24; i++) {
+    const v = w[i];
+    if (v === 'B') h += '<div class="bar word bk">BANKRUPT</div>';
+    else if (v === 'L') h += '<div class="bar word lt">LOSE<br>TURN</div>';
+    else h += '<div class="bar' + (v >= 2500 ? ' top' : '') + '"' + (v >= 2500 ? '' : ' style="background:' + WEDGE_COLORS[i % WEDGE_COLORS.length] + '"') + '>' + v + '</div>';
+  }
+  $('strip').innerHTML = h;
+  $('strip').dataset.round = round;
+}
+function placeStrip(animate) {
+  const el = $('strip'), wrap = $('stripWrap');
+  const bw = el.firstChild ? el.firstChild.getBoundingClientRect().width : 54;
+  if (!wrap.clientWidth || !bw) return;
+  const x = wrap.clientWidth / 2 - stripPos * bw;
+  if (animate) { el.style.transition = ''; el.style.transform = 'translateX(' + x + 'px)'; return; }
+  el.style.transition = 'none';
+  el.style.transform = 'translateX(' + x + 'px)';
+  void el.offsetWidth;
+  el.style.transition = '';
+}
+// Puts wedge sp.idx under the pointer. jit (stored in degrees for v1 games) nudges it off-center a bit.
+function setWheel(sp, animate) {
+  const target = sp.idx + 0.5 + Math.max(-0.3, Math.min(0.3, (sp.jit || 0) / 15));
+  if (!animate) { stripPos = 24 + target; placeStrip(false); return; }
+  let t = Math.floor(stripPos / 24) * 24 + target;
+  while (t < stripPos + 24 * 3) t += 24;
+  stripPos = t;
+  spinning = true;
+  placeStrip(true);
+  clearTimeout(setWheel.t);
+  setWheel.t = setTimeout(function () {
+    spinning = false;
+    stripPos = 24 + ((stripPos % 24) + 24) % 24;   // jump back to the same spot in an earlier copy
+    placeStrip(false);
+    render();
+  }, 4300);
+}
+window.addEventListener('resize', function () { if (!spinning) placeStrip(false); });
+
+// ---------- render ----------
+function render() {
+  $('ver').textContent = VERSIONS[0][0];
+  renderTabs();
+  if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); $('sub').textContent = S ? 'Lobby' : ''; return; }
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  if (+$('strip').dataset.round !== S.round) { drawStrip(S.round); if (S.spin) setWheel(S.spin, false); }
+  if (!spinning) placeStrip(false);
+  $('sub').textContent = S.status === 'bonus' || (S.status === 'over' && S.bonus) ? 'Bonus round' : 'Round ' + S.round + '/' + S.settings.rounds;
+  renderBoard(); renderPlayers(); renderMsg(); renderActions();
+}
+
+function renderBoard() {
+  const grid = layout(S.puzzle.text) || layout('OOPS');
+  let h = '';
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 14; c++) {
+    const corner = (r === 0 || r === 3) && (c === 0 || c === 13);
+    const ch = grid[r][c];
+    if (corner) { h += '<div class="c x"></div>'; continue; }
+    if (ch === null) { h += '<div class="c g"></div>'; continue; }
+    const isLetter = /[A-Z]/.test(ch);
+    const shown = !isLetter || S.guessed.indexOf(ch) >= 0;
+    const fresh = isLetter && ch === S.last && shown && !spinning;
+    h += '<div class="c t' + (fresh ? ' new' : '') + '">' + (shown ? esc(ch) : '') + '</div>';
+  }
+  $('board').innerHTML = h;
+  $('cat').textContent = S.puzzle.cat;
+  $('hint').textContent = S.puzzle.hint ? 'Clue: ' + S.puzzle.hint : (S.puzzle.src === 'online' ? 'From Wikipedia\'s most-read' : '');
+}
+
+function renderPlayers() {
+  const m = me();
+  $('players').style.setProperty('--n', S.players.length);
+  $('players').innerHTML = S.players.map(function (p, i) {
+    const on = (S.status === 'play' && S.turn === i) || (S.status === 'bonus' && S.bonus && S.bonus.p === i);
+    return '<div class="p' + (on ? ' on' : '') + (i === m ? ' me' : '') + '"><div class="hd"><span class="nm">' + av(p) + esc(p.name) + '</span>' +
+      (S.status === 'play' ? '<span class="tt" title="Banked from earlier rounds">' + money(p.total) + '</span>' : '') + '</div>' +
+      '<div class="bk">' + money(S.status === 'play' ? p.bank : p.total) + '</div></div>';
+  }).join('');
+}
+
+function renderMsg() {
+  const log = S.log || [];
+  let top = spinning ? 'Spinning…' : (log[0] || '');
+  $('msg').innerHTML = '<div>' + esc(top) + '</div>' + log.slice(spinning ? 0 : 1, spinning ? 2 : 3).map(function (l) { return '<div class="old">' + esc(l) + '</div>'; }).join('');
+}
+
+function keyboard(kind, onPick, opts) {
+  opts = opts || {};
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  $('keys').innerHTML = letters.map(function (L) {
+    const v = VOWELS.indexOf(L) >= 0;
+    const used = S.guessed.indexOf(L) >= 0;
+    const sel = opts.sel && opts.sel.indexOf(L) >= 0;
+    const allowed = !used && (kind === 'any' || (kind === 'c' && !v) || (kind === 'v' && v));
+    return '<button data-l="' + L + '" class="' + (v ? 'v ' : '') + (used ? 'used ' : '') + (sel ? 'sel' : '') + '"' + (allowed && !busy && !spinning ? '' : ' disabled') + '>' + L + '</button>';
+  }).join('');
+  $('keys').onclick = function (e) { const b = e.target.closest('button'); if (b && !b.disabled) onPick(b.dataset.l); };
+}
+
+function renderActions() {
+  const a = $('actions'), m = me();
+  $('keys').innerHTML = '';
+  const dis = busy || spinning ? ' disabled' : '';
+  if (m < 0) {
+    a.innerHTML = '<div class="note">You\'re watching. If you\'re one of these players (first time in the Games app):</div>' +
+      S.players.map(function (p, i) { return '<button data-claim="' + i + '"' + dis + '>I\'m ' + esc(p.name) + '</button>'; }).join('');
+    a.onclick = function (e) { const b = e.target.closest('button'); if (b && b.dataset.claim) claimSeat(+b.dataset.claim); };
+    return;
+  }
+  a.onclick = null;
+  if (S.status === 'play') {
+    const p = S.players[S.turn];
+    if (!myTurn()) { a.innerHTML = '<div class="note">Waiting for ' + esc(p.name) + '…</div>'; return; }
+    if (S.phase === 'consonant') {
+      a.innerHTML = '<div class="note">Pick a consonant. Each one is worth ' + money(S.spinVal) + '.</div>';
+      keyboard('c', callConsonant);
+      return;
+    }
+    if (mode === 'vowel') {
+      a.innerHTML = '<div class="note">Buy a vowel for ' + money(VOWEL_COST) + '</div><button id="cancel"' + dis + '>Cancel</button>';
+      $('cancel').onclick = function () { mode = null; render(); };
+      keyboard('v', buyVowel);
+      return;
+    }
+    const cLeft = hiddenLeft('c'), vLeft = hiddenLeft('v');
+    a.innerHTML = '<button class="primary" id="bSpin"' + (cLeft ? dis : ' disabled') + '>Spin</button>' +
+      '<button id="bVowel"' + (vLeft && p.bank >= VOWEL_COST ? dis : ' disabled') + '>Buy vowel</button>' +
+      '<button class="go" id="bSolve"' + dis + '>Solve</button>' +
+      (cLeft ? '' : '<div class="note">No consonants left. Buy a vowel or solve.</div>');
+    $('bSpin').onclick = spin;
+    $('bVowel').onclick = function () { mode = 'vowel'; render(); };
+    $('bSolve').onclick = function () { solveSheet(solve); };
+    return;
+  }
+  if (S.status === 'roundEnd') {
+    const last = S.round >= S.settings.rounds;
+    a.innerHTML = '<div class="note">' + esc(name(S.winner)) + ' won round ' + S.round + '.</div>' +
+      '<button class="primary" id="bNext"' + dis + '>' + (last ? 'Start bonus round' : 'Next round') + '</button>';
+    $('bNext').onclick = nextRound;
+    return;
+  }
+  if (S.status === 'bonus') {
+    const b = S.bonus, who = S.players[b.p];
+    if (m !== b.p) { a.innerHTML = '<div class="note">' + esc(who.name) + ' is playing the bonus round. The prize is ' + money(b.prize) + ' if solved.</div>'; return; }
+    if (b.stage === 'pick') {
+      const c = bonusSel.filter(function (l) { return VOWELS.indexOf(l) < 0; }).length, v = bonusSel.length - c;
+      a.innerHTML = '<div class="note">Pick 3 more consonants and 1 vowel (' + c + '/3, ' + v + '/1)</div>' +
+        '<button class="primary" id="bLock"' + (c === 3 && v === 1 ? dis : ' disabled') + '>Lock in</button>';
+      $('bLock').onclick = bonusLock;
+      keyboard('any', function (L) {
+        const i = bonusSel.indexOf(L);
+        if (i >= 0) bonusSel.splice(i, 1);
+        else {
+          const isV = VOWELS.indexOf(L) >= 0;
+          const have = bonusSel.filter(function (l) { return (VOWELS.indexOf(l) >= 0) === isV; }).length;
+          if (have >= (isV ? 1 : 3)) return toast(isV ? 'Only 1 vowel.' : 'Only 3 consonants.');
+          bonusSel.push(L);
+        }
+        render();
+      }, { sel: bonusSel });
+      return;
+    }
+    a.innerHTML = '<div class="note">One guess to win the envelope.</div><button class="go" id="bSolve"' + dis + '>Solve</button>';
+    $('bSolve').onclick = function () { solveSheet(bonusSolve); };
+    return;
+  }
+  if (S.status === 'over') {
+    const ranked = S.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (x, y) { return y.p.total - x.p.total; });
+    const b = S.bonus;
+    a.innerHTML = '<div class="card" style="width:100%"><h2>Final</h2>' +
+      (b ? '<div class="small">' + esc(name(b.p)) + (b.won ? ' won the bonus envelope: ' : ' missed the bonus. The envelope held ') + '<b>' + money(b.prize) + '</b></div>' : '') +
+      ranked.map(function (r, k) { return '<div class="seat"><span>' + (k + 1) + '. ' + av(r.p) + esc(r.p.name) + '</span><span class="big">' + money(r.p.total) + '</span></div>'; }).join('') +
+      '</div><button class="primary" id="bRe"' + dis + '>Rematch (same players)</button><button id="bNew"' + dis + '>New game</button>';
+    $('bRe').onclick = rematch;
+    $('bNew').onclick = function () { setupSheet(); };
+  }
+}
+
+function renderLobby() {
+  const L = $('lobby');
+  if (!S) {
+    L.innerHTML = '<div class="card"><h2>New game</h2><div class="small">Spin the wheel, call letters, solve the puzzle. 2 players, each on their own phone.</div>' + setupForm() + '<button class="primary" id="bCreate" style="width:100%;margin-top:8px">Create game</button></div>';
+    bindSetup('bCreate');
+    return;
+  }
+  const m = me(), host = m === 0;
+  let h = '<div class="card"><h2>Lobby</h2>' + S.players.map(function (p, i) {
+    return '<div class="seat"><span>' + av(p) + esc(p.name) + (i === 0 ? ' <span class="small">(host)</span>' : '') + (i === m ? ' <span class="small">(you)</span>' : '') + '</span></div>';
+  }).join('') +
+    '<div class="small" style="margin-top:8px">' + S.settings.rounds + ' rounds + bonus · Puzzles: ' + ({ mixed: 'Built-in + online', builtin: 'Built-in', online: 'Online' })[S.settings.source] + '</div></div>';
+  if (m < 0 && S.players.length < MAX_SEATS) {
+    h += '<div class="card"><h2>Join</h2><input id="jName" maxlength="14" placeholder="Your name" value="' + esc(lsGet('wheelhouse-name') || '') + '"><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+  } else if (m < 0) {
+    h += '<div class="card small">The game is full.</div>';
+  }
+  if (host) h += '<button class="primary" id="bStart" style="width:100%"' + (S.players.length >= 2 && !busy ? '' : ' disabled') + '>' + (S.players.length >= 2 ? 'Start game' : 'Waiting for the other player to join…') + '</button>';
+  else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(S.players[0].name) + ' to start…</div>';
+  h += '<div class="small center" style="margin-top:12px">The other player joins from their Wheelhouse tab.</div>';
+  L.innerHTML = h;
+  if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('wheelhouse-name', n); join(n); };
+  if ($('bStart')) $('bStart').onclick = function () { startRound(next()); };
+}
+
+function setupForm() {
+  return '<div class="row"><label>Your name</label><input id="sName" maxlength="14" value="' + esc(lsGet('wheelhouse-name') || '') + '"></div>' +
+    '<div class="row"><label>Rounds</label><select id="sRounds"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>' +
+    '<div class="row"><label>Puzzles</label><select id="sSrc"><option value="mixed" selected>Built-in + online</option><option value="builtin">Built-in only</option><option value="online">Online only</option></select></div>';
+}
+function bindSetup(btnId, after) {
+  $(btnId).onclick = function () {
+    const n = $('sName').value.trim();
+    if (!n) return toast('Enter your name');
+    lsSet('wheelhouse-name', n);
+    if (after) after();
+    newGame(n, { rounds: +$('sRounds').value, source: $('sSrc').value });
+  };
+}
+
+// ---------- sheets ----------
+function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+$('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
+
+function solveSheet(fn) {
+  openSheet('<h3>Solve the puzzle</h3><div class="small" style="margin-bottom:8px">' + esc(S.puzzle.cat) + '. Spaces and punctuation don\'t matter.</div>' +
+    '<input id="solveIn" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type your answer">' +
+    '<div class="row" style="margin-top:12px"><button id="sCancel" style="flex:1">Cancel</button><button class="go" id="sGo" style="flex:2">Solve</button></div>');
+  setTimeout(function () { $('solveIn').focus(); }, 50);
+  const go = function () { const v = $('solveIn').value.trim(); if (!v) return; closeSheet(); fn(v); };
+  $('sGo').onclick = go;
+  $('solveIn').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  $('sCancel').onclick = closeSheet;
+}
+function setupSheet() {
+  openSheet('<h3>Start a new game</h3><div class="small">This replaces the current game for everyone.</div>' + setupForm() +
+    '<div class="row" style="margin-top:12px"><button id="nCancel" style="flex:1">Cancel</button><button class="primary" id="nGo" style="flex:2">Create game</button></div>');
+  $('nCancel').onclick = closeSheet;
+  bindSetup('nGo', closeSheet);
+}
+function menuSheet() {
+  const m = me();
+  openSheet('<h3>Wheelhouse</h3>' +
+    '<div class="card"><h2>How to play</h2><div class="small">On your turn, <b>Spin</b> and call a consonant: you earn the wedge value for each time it appears. ' +
+    '<b>Buy a vowel</b> for $250 from this round\'s money. <b>Solve</b> whenever it\'s your turn. A wrong letter, wrong guess, Bankrupt or Lose a Turn passes play. ' +
+    'Bankrupt also wipes your money for the round. The solver banks their round money (at least $1,000). After the last round, the leader plays the bonus round: R S T L N E are given, pick 3 consonants and a vowel, then make one guess.</div></div>' +
+    (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
+    '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
+    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +
+    '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
+    '<button id="mClose" style="width:100%">Close</button>');
+  $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
+  if ($('mClose2')) $('mClose2').onclick = function () {
+    openSheet('<h3>Close this game?</h3><div class="small">It ends for everyone and the tab is freed. This can\'t be undone.</div>' +
+      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">Close game</button></div>');
+    $('cNo').onclick = closeSheet;
+    $('cYes').onclick = function () { closeSheet(); closeGame(); };
+  };
+  $('mClose').onclick = closeSheet;
+}
+$('menuBtn').onclick = menuSheet;
+
+function toast(t) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+function buzzIfMyTurn() {
+  const key = S && (S.gid + ':' + S.turn + ':' + S.round + ':' + S.status);
+  const mine = myTurn() || (S && S.status === 'bonus' && S.bonus && S.bonus.p === me() && S.bonus.stage !== 'done');
+  if (mine && key !== lastTurnKey && lastTurnKey && navigator.vibrate) navigator.vibrate(120);
+  lastTurnKey = key || '';
+}
+
+// ---------- start ----------
+drawStrip(1);
+render();
+window.addEventListener('gamesprofiles', function () { if (S && S.status !== 'lobby') renderPlayers(); else render(); });
+store.get(function (st) { if (st !== undefined) apply(st); else toast('Could not load the game.'); });
+setInterval(poll, 4000);
+document.addEventListener('visibilitychange', poll);
+</script>
+</body>
+</html>

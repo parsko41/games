@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1530">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Games</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--bg:#0f1530;--bar:#0b1026;--panel:#1a2244;--panel2:#252f5c;--ink:#eef1ff;--dim:#9aa4c9;--gold:#ffcf4a;--ok:#35c46a;--line:#2c3765}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  #bar{position:fixed;left:0;right:0;top:0;height:calc(44px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 6px 0;background:var(--bar);display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line);z-index:5}
+  #bar .tab{flex:1 1 0;min-width:0;height:34px;border-radius:10px;background:transparent;color:var(--dim);font-weight:700;font-size:14px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+  #bar .tab.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 -2px 0 var(--gold)}
+  #bar .tab .dot{position:absolute;top:5px;right:6px;min-width:9px;height:9px;border-radius:5px;background:var(--ok)}
+  #me{flex:0 0 auto;width:38px;height:34px;border-radius:10px;background:var(--panel);font-size:20px;line-height:34px;padding:0}
+  #frames{position:fixed;left:0;right:0;bottom:0;top:calc(44px + env(safe-area-inset-top))}
+  #frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  #frames iframe.off{visibility:hidden}
+
+  #sheet{position:fixed;inset:0;background:#000b;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:92vh;overflow:auto}
+  #sheet h2{margin:0 0 6px;font-size:20px}
+  #sheet h3{margin:16px 0 8px;font-size:14px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+  .small{font-size:13px;color:var(--dim)}
+  .who{display:flex;flex-direction:column;gap:8px}
+  .who button{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:12px;padding:12px 14px;text-align:left;font-weight:600}
+  .who button span{font-size:24px}
+  input{font:inherit;font-size:16px;color:var(--ink);background:#0a0f24;border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%}
+  .emo{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:10px}
+  .emo button{aspect-ratio:1;border-radius:10px;background:var(--panel2);font-size:22px;padding:0}
+  .emo button.on{background:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+  .row{display:flex;gap:8px;margin-top:16px}
+  .row button{flex:1;padding:12px 14px;border-radius:12px;background:var(--panel2);font-weight:600}
+  .row button.primary{flex:2;background:var(--gold);color:#1b1400;font-weight:800}
+  .row button:disabled{opacity:.4}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;font-size:14px;z-index:20;display:none;max-width:90vw}
+  .ver{margin-top:18px;text-align:center;font-size:12px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="bar">
+  <button class="tab" data-game="tilework">Tilework</button>
+  <button class="tab" data-game="wheelhouse">Wheelhouse</button>
+  <button class="tab" data-game="answers">Answers</button>
+  <button id="me" aria-label="Player">🙂</button>
+</div>
+<div id="frames"></div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="shim.js"></script>
+<script>
+(function () {
+  'use strict';
+  const APP_VERSION = '1.0';
+  const GAMES = ['tilework', 'wheelhouse', 'answers'];
+  const EMOJI = ['🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐙','🦉','🐢','🦄','🐝','🐞','🦋','🐬','🐳','🦖','🌵','🌻','🍄','🍕','🍩','⚡','🔥','🌈','⭐','🌙','🚀','🚂','🎸','🎲','📷'];
+  const $ = function (id) { return document.getElementById(id); };
+  const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function toast(t) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2800); }
+
+  let player = GamesApp.player;          // {dev, name, avatar} or null
+  let current = lsGet('games-tab');
+  if (GAMES.indexOf(current) < 0) current = 'tilework';
+  const frames = {};
+
+  // ---------- tabs ----------
+  function show(game) {
+    current = game; lsSet('games-tab', game);
+    if (!frames[game]) {
+      const f = document.createElement('iframe');
+      f.src = game + '/index.html';
+      f.title = game;
+      f.setAttribute('allow', 'vibrate');
+      $('frames').appendChild(f);
+      frames[game] = f;
+    }
+    GAMES.forEach(function (g) { if (frames[g]) frames[g].classList.toggle('off', g !== game); });
+    document.querySelectorAll('#bar .tab').forEach(function (b) { b.classList.toggle('on', b.dataset.game === game); });
+    refreshDots();
+  }
+  document.querySelectorAll('#bar .tab').forEach(function (b) { b.onclick = function () { if (player) show(b.dataset.game); }; });
+
+  // ---------- turn dots ----------
+  let waiting = {};
+  function refreshDots() {
+    if (!player || document.hidden) return;
+    GamesApp.call('app', 'overview', [player.dev]).then(function (o) { waiting = o || {}; drawDots(); }, function () {});
+  }
+  function drawDots() {
+    let total = 0;
+    document.querySelectorAll('#bar .tab').forEach(function (b) {
+      const n = waiting[b.dataset.game] || 0;
+      total += n;
+      const old = b.querySelector('.dot');
+      if (n && !old) { const d = document.createElement('span'); d.className = 'dot'; b.appendChild(d); }
+      if (!n && old) old.remove();
+      b.setAttribute('aria-label', b.textContent + (n ? ', your move in ' + n : ''));
+    });
+    document.title = total ? '(' + total + ') Games' : 'Games';
+    try { if (navigator.setAppBadge) total ? navigator.setAppBadge(total) : navigator.clearAppBadge(); } catch (e) {}
+  }
+  setInterval(refreshDots, 15000);
+  document.addEventListener('visibilitychange', refreshDots);
+
+  // ---------- who's playing ----------
+  function newId() { const a = new Uint32Array(2); crypto.getRandomValues(a); return 'p' + a[0].toString(36) + a[1].toString(36); }
+  function usePlayer(p) {
+    const changed = !player || player.dev !== p.dev;
+    player = { dev: p.dev, name: p.name, avatar: p.avatar };
+    lsSet('games-me', JSON.stringify(player));
+    $('me').textContent = player.avatar || '🙂';
+    closeSheet();
+    if (changed && Object.keys(frames).length) { location.reload(); return; }   // games read the player when they load
+    show(current);
+  }
+  function save(dev, name, avatar) {
+    return GamesApp.call('app', 'setProfile', [dev, name, avatar]).then(function (all) {
+      try { lsSet('games-profiles', JSON.stringify(all)); } catch (e) {}
+      return all;
+    });
+  }
+
+  function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+  function closeSheet() { $('sheet').classList.add('hidden'); }
+  $('sheet').onclick = function (e) { if (e.target.id === 'sheet' && player) closeSheet(); };
+
+  // First open: pick an existing player (another phone, or a reinstall) or make a new one.
+  function pickSheet() {
+    openSheet('<h2>Who\'s playing on this phone?</h2><div class="small">You only do this once. Every game remembers you after this.</div>' +
+      '<div id="whoList" class="who" style="margin-top:14px"><div class="small">Loading players…</div></div>' +
+      '<h3>New player</h3><button id="bNewP" style="width:100%;padding:12px;border-radius:12px;background:var(--panel2);font-weight:600">+ I\'m new</button>' +
+      '<div class="ver">Games ' + APP_VERSION + '</div>');
+    $('bNewP').onclick = function () { editSheet(null); };
+    GamesApp.refresh().then(function (all) {
+      const keys = Object.keys(all || {}).sort(function (a, b) { return (all[b].t || 0) - (all[a].t || 0); });
+      $('whoList').innerHTML = keys.length ? keys.map(function (k) {
+        return '<button data-dev="' + esc(k) + '"><span>' + esc(all[k].avatar || '🙂') + '</span>' + esc(all[k].name) + '</button>';
+      }).join('') : '<div class="small">No players yet. Tap "I\'m new".</div>';
+      $('whoList').onclick = function (e) {
+        const b = e.target.closest('button'); if (!b) return;
+        const p = all[b.dataset.dev]; usePlayer({ dev: b.dataset.dev, name: p.name, avatar: p.avatar });
+      };
+    }, function (err) { $('whoList').innerHTML = '<div class="small">Couldn\'t reach the server: ' + esc(err.message) + '</div>'; });
+  }
+
+  // Make or change a player: name + avatar.
+  function editSheet(p) {
+    const isNew = !p;
+    let pick = (p && p.avatar) || EMOJI[Math.floor(Math.random() * EMOJI.length)];
+    openSheet('<h2>' + (isNew ? 'New player' : 'Your player') + '</h2>' +
+      '<input id="pName" maxlength="14" placeholder="Your name" value="' + esc((p && p.name) || '') + '" autocomplete="given-name">' +
+      '<h3>Avatar</h3><div class="emo" id="emo">' + EMOJI.map(function (e) { return '<button data-e="' + e + '" class="' + (e === pick ? 'on' : '') + '">' + e + '</button>'; }).join('') + '</div>' +
+      '<div class="row"><button id="pCancel">' + (isNew ? 'Back' : 'Cancel') + '</button><button class="primary" id="pSave">Save</button></div>' +
+      (isNew ? '' : '<div class="row"><button id="pSwitch">Switch to another player</button></div>') +
+      '<div class="ver">Games ' + APP_VERSION + '</div>');
+    $('emo').onclick = function (e) {
+      const b = e.target.closest('button'); if (!b) return;
+      pick = b.dataset.e;
+      document.querySelectorAll('#emo button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    };
+    $('pCancel').onclick = function () { if (isNew) pickSheet(); else closeSheet(); };
+    if ($('pSwitch')) $('pSwitch').onclick = pickSheet;
+    $('pSave').onclick = function () {
+      const name = $('pName').value.trim();
+      if (!name) return toast('Enter your name');
+      const dev = isNew ? newId() : p.dev;
+      $('pSave').disabled = true;
+      save(dev, name, pick).then(function () {
+        if (!isNew && player && player.dev === dev) {
+          player.name = name; player.avatar = pick; lsSet('games-me', JSON.stringify(player));
+          $('me').textContent = pick; closeSheet();
+          Object.keys(frames).forEach(function (g) { frames[g].contentWindow.location.reload(); });
+          return;
+        }
+        usePlayer({ dev: dev, name: name, avatar: pick });
+      }, function (err) { $('pSave').disabled = false; toast('Couldn\'t save: ' + err.message); });
+    };
+  }
+  $('me').onclick = function () { if (player) editSheet(player); else pickSheet(); };
+
+  // ---------- start ----------
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  if (player) { $('me').textContent = player.avatar || '🙂'; show(current); }
+  else pickSheet();
+})();
+</script>
+</body>
+</html>

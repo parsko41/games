@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{
+    --bg:#0c1030; --panel:#171d4a; --panel2:#232b66; --ink:#eef1ff; --dim:#9aa4d0;
+    --gold:#ffcf4a; --cell:#1c2fa8; --cell2:#14227a; --red:#e5484d; --ok:#35c46a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.primary{background:var(--gold);color:#1b1400;font-weight:700}
+  button.go{background:var(--ok);color:#04210f;font-weight:700}
+  input,select{font:inherit;font-size:16px;color:var(--ink);background:#080b22;border:1px solid #34407a;border-radius:10px;padding:11px 12px;width:100%}
+  #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
+  header{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:34px}
+  header h1{font-size:17px;margin:0;letter-spacing:.3px;color:var(--gold);white-space:nowrap}
+  header h1 small{font-size:10px;color:var(--dim);font-weight:400;margin-left:3px}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:auto}
+
+  /* tabs */
+  #tabs{display:flex;gap:5px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
+  #tabs::-webkit-scrollbar{display:none}
+  #tabs button{flex:0 0 auto;padding:5px 10px;border-radius:999px;font-size:13px;background:var(--panel);color:var(--dim);white-space:nowrap}
+  #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
+  #tabs button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
+  #tabs button.add{font-weight:800;color:var(--gold)}
+
+  /* players */
+  #players{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:6px;margin-bottom:6px}
+  .p{background:var(--panel);border-radius:10px;padding:4px 8px;border:2px solid transparent;min-width:0;line-height:1.25}
+  .p.on{border-color:var(--gold);background:#2a2a5a}
+  .p .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p.me .nm::after{content:" (you)";color:var(--dim);font-weight:400;font-size:12px}
+  .p .sc{font-size:17px;font-weight:800;color:var(--gold)}
+  .p .sc.neg{color:var(--red)}
+
+  /* board */
+  #board{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;background:#000;padding:3px;border-radius:10px}
+  .hd{background:var(--cell);color:#fff;font:800 9.5px/1.15 Arial,sans-serif;text-transform:uppercase;display:flex;align-items:center;justify-content:center;text-align:center;padding:3px 1px;height:52px;overflow:hidden;border-radius:3px;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere}
+  .hd.w8{font-size:8.5px}
+  .hd.w10{font-size:7.5px;letter-spacing:-.2px}
+  .hd.w11{font-size:6.8px;letter-spacing:-.25px}
+  .hd{position:relative}
+  .hd.online::after{content:"";position:absolute;top:3px;right:3px;width:4px;height:4px;border-radius:50%;background:var(--gold)}
+  .v{background:var(--cell);color:var(--gold);font:800 15.5px/1 Arial,sans-serif;letter-spacing:-.3px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:3px;padding:0;text-shadow:1px 1px 0 #000}
+  .v.used{background:var(--cell2);color:transparent;text-shadow:none}
+  .v.right{box-shadow:inset 0 -3px 0 var(--ok)}
+  .v.wrong{box-shadow:inset 0 -3px 0 var(--red)}
+  button.v:disabled{opacity:1}
+
+  /* clue */
+  #clue{background:var(--cell);border-radius:12px;padding:12px 14px;min-height:190px;display:flex;flex-direction:column}
+  #clue .meta{display:flex;justify-content:space-between;font:800 12px/1.2 Arial,sans-serif;text-transform:uppercase;color:#cfd6ff;gap:8px}
+  #clue .meta .val{color:var(--gold);white-space:nowrap}
+  #clue .q{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font:700 20px/1.3 Georgia,"Times New Roman",serif;color:#fff;padding:14px 4px;text-transform:uppercase;letter-spacing:.3px;text-shadow:1px 1px 0 #000}
+  #clue .dd{font:900 30px/1.1 Arial,sans-serif;color:var(--gold)}
+  #clue .tries{font-size:13px;color:#dfe4ff}
+  #clue .tries .t{margin-top:2px}
+  #clue .ans{margin-top:6px;font-weight:700;color:var(--gold);text-align:center}
+
+  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin:6px 0;font-size:14px;line-height:1.3}
+  #msg .a{color:var(--gold);font-weight:700}
+  #msg .old{display:none;color:var(--dim);font-size:12px}
+
+  #actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:13px}
+  #actions > button{flex:1 1 30%;min-width:90px;padding:11px 12px}
+  .answer{display:flex;gap:6px;width:100%}
+  .answer select{flex:0 0 112px;padding:11px 6px}
+  .answer input{flex:1;min-width:0}
+  .btns{display:flex;gap:6px;width:100%}
+  .btns button{flex:1}
+  .btns button.go,.btns button.primary{flex:2}
+
+  .ok{color:var(--ok)} .bad{color:var(--red)}
+  .card{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:18px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .row label{flex:0 0 96px;color:var(--dim);font-size:14px}
+  .seat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3566}
+  .small{font-size:13px;color:var(--dim)}
+  .big{font-size:22px;font-weight:800;color:var(--gold)}
+  .center{text-align:center}
+  .card.final{padding:10px 14px;margin-bottom:6px}
+  .card.final h2{margin-bottom:4px;font-size:16px}
+  .card.final .seat{padding:3px 0}
+  .card.final .big{font-size:19px}
+
+  #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:85vh;overflow:auto}
+  #sheet h3{margin:4px 0 10px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;font-size:14px;z-index:20;display:none;max-width:90vw}
+  .hidden{display:none !important}
+  @media (min-width:700px){
+    #app{max-width:760px;padding-bottom:40px}
+    .hd,.hd.w8{font-size:12px;height:56px;letter-spacing:0}
+    .hd.w10,.hd.w11{font-size:11px;letter-spacing:0}
+    .v{font-size:24px;height:56px}
+    #clue{min-height:300px}
+    #clue .q{font-size:28px}
+    #msg .old{display:block}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Answers<small id="ver"></small></h1>
+    <div id="tabs"></div>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="lobby"></div>
+  <div id="game" class="hidden">
+    <div id="players"></div>
+    <div id="main"></div>
+    <div id="msg"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="../shim.js" data-game="answers"></script>
+<script>
+// ---------- versions (bump on every change) ----------
+const VERSIONS = [
+  ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first pick is random. New: play against the computer (easy, medium or hard) from the New game screen.'],
+  ['v3', '2026-10-10', 'Small typos are forgiven (Arachnaphobia counts), as are a plural "s" and extra words taken from the clue ("green paint" when the clue says paint). Numbers still have to be exact. When a response is close enough, the log shows the right spelling. Online clues that only make sense with the multiple-choice options ("starred in the following movies, except which one?") are filtered out.'],
+  ['v2', '2026-10-03', 'Project switched to the Chrome V8 runtime (fixes online clue categories). No gameplay changes.'],
+  ['v1', '2026-10-03', 'First version: 1–3 players, a 6×5 board, Daily Doubles, a Double round, and a final clue with wagers. The picker answers first; if they miss or pass, the others get to steal in turn. Type your response after picking What is / Who is. Built-in clues plus online ones from Open Trivia DB.']
+];
+
+// ---------- built-in clues ----------
+// "# Category" starts a category; then 5 lines "clue :: answer|other accepted answer", easiest first.
+const CLUES = `
+/*CLUES*/
+`.trim().split('\n').reduce(function (cats, l) {
+  l = l.trim();
+  if (!l) return cats;
+  if (l[0] === '#') { cats.push({ name: l.slice(1).trim(), clues: [] }); return cats; }
+  const i = l.lastIndexOf(' :: ');
+  cats[cats.length - 1].clues.push({ q: l.slice(0, i).trim(), a: l.slice(i + 4).trim() });
+  return cats;
+}, []);
+
+// Final clues: "Category :: clue :: answer|other accepted answer"
+const FINALS = `
+/*FINALS*/
+`.trim().split('\n').map(function (l) { const p = l.split(' :: '); return { cat: p[0].trim(), q: p[1].trim(), a: p[2].trim() }; });
+
+const MAX_SEATS = 2, MAX_GAMES = 5;
+const LEADS = ['What is', 'Who is', 'Where is', 'What are', 'Who are', 'When is'];
+
+// ---------- device / local state ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let DEV = lsGet('answers-device');
+if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('answers-device', DEV); }
+
+let S = null;            // current game state (from server)
+let busy = false;        // waiting on a save
+let lastTurnKey = '';
+let curSlot = Math.min(Math.max(parseInt(lsGet('answers-slot') || '0', 10) || 0, 0), MAX_GAMES - 1);
+let GAMES = [];          // summaries of every tab's game, from the server
+let loaded = false;      // have we heard from the server for this tab yet
+let draft = { lead: 'What is', text: '', wager: '' };  // what's typed, kept across re-renders
+
+const $ = function (id) { return document.getElementById(id); };
+const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const av = function (p) { return window.GamesApp ? esc(GamesApp.avatar(p.dev, p.name)) : ''; };
+const money = function (n) { n = Number(n || 0); return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US'); };
+
+// ---------- answers are never saved as plain text ----------
+// Every unrevealed answer lives only in memory as .a; the save file holds .e
+// (the text XORed with a keystream seeded by the game id and the clue's place, then base64).
+// Not real security, just enough that peeking at the Drive file doesn't give it away.
+function keystream(seed, n) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const out = [];
+  for (let i = 0; i < n; i++) { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; out.push(h & 255); }
+  return out;
+}
+function encText(t, seed) {
+  const u = unescape(encodeURIComponent(t)), k = keystream('an:' + seed, u.length);
+  let b = '';
+  for (let i = 0; i < u.length; i++) b += String.fromCharCode(u.charCodeAt(i) ^ k[i]);
+  return btoa(b);
+}
+function decText(e, seed) {
+  const b = atob(e), k = keystream('an:' + seed, b.length);
+  let t = '';
+  for (let i = 0; i < b.length; i++) t += String.fromCharCode(b.charCodeAt(i) ^ k[i]);
+  return decodeURIComponent(escape(t));
+}
+function eachSecret(st, fn) {   // fn(obj, seed) for every object that carries an answer
+  if (st.board) st.board.cats.forEach(function (c, ci) { c.clues.forEach(function (cl, ri) { fn(cl, st.gid + ':' + st.round + ':' + ci + ':' + ri); }); });
+  if (st.final) fn(st.final, st.gid + ':final');
+}
+function hide(ns) {             // copy for saving: answers encoded, plain text dropped
+  const out = JSON.parse(JSON.stringify(ns));
+  eachSecret(out, function (o, seed) { if (typeof o.a === 'string') { o.e = encText(o.a, seed); delete o.a; } });
+  return out;
+}
+function reveal(st) {           // after loading: decode answers back into .a
+  if (st) eachSecret(st, function (o, seed) {
+    if (o.e && typeof o.a !== 'string') { try { o.a = decText(o.e, seed); } catch (e) { o.a = ''; } }
+  });
+  return st;
+}
+
+// ---------- server ----------
+// Every call is tagged with the tab it was for; answers for a tab we've since left are ignored.
+const store = {
+  get: function (cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { if (slot !== curSlot) return; GAMES = r.games || GAMES; cb(reveal(r.state)); })
+      .withFailureHandler(function () { if (slot === curSlot) cb(undefined); }).getState(slot);
+  },
+  save: function (ns, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot !== curSlot) { busy = false; renderTabs(); return; } cb(r.ok, reveal(r.state)); })
+      .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
+      .saveState(JSON.stringify(hide(ns)), slot);
+  },
+  close: function (gid, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
+      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
+  },
+  online: function (n, avoid, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r || []); }).withFailureHandler(function () { cb([]); }).getOnlineCategories(n, avoid);
+  }
+};
+
+// act(fn): fn changes a copy of the state (return false to cancel) and it gets saved.
+// With retry, a save that loses a race is re-applied to the fresh state (used in the final,
+// where everyone submits at the same time).
+function act(fn, retry) {
+  if (busy || !S) return;
+  const ns = next();
+  if (fn(ns) === false) return;
+  commit(ns, retry ? fn : null, 4);
+}
+function commit(ns, retryFn, tries) {
+  if (busy) return;
+  busy = true; render();
+  store.save(ns, function (ok, saved) {
+    busy = false;
+    if (!ok && saved !== undefined && retryFn && saved && saved.gid === ns.gid) {
+      S = saved;
+      const again = next();
+      if (retryFn(again) !== false) return commit(again, tries > 1 ? retryFn : null, tries - 1);
+    }
+    if (!ok && saved !== undefined) toast('Someone moved first, so the game refreshed.');
+    if (saved !== undefined) apply(saved, true);
+    else render();
+  });
+}
+
+function switchTab(i) {
+  if (i === curSlot || busy) return;
+  curSlot = i; lsSet('answers-slot', String(i));
+  S = null; loaded = false; lastTurnKey = ''; draft.text = ''; draft.wager = '';
+  closeSheet();
+  render();
+  store.get(function (st) { if (st !== undefined) apply(st); });
+}
+function tabInfo(g) {
+  if (!g) return { label: 'New game', dot: false };
+  const mine = g.devs.indexOf(DEV) >= 0;
+  if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
+  const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
+  const label = mine ? (others.length ? 'vs ' + others.join(' & ') : 'Solo') : g.names.join(' & ');
+  const dot = mine && (g.act === '*' || String(g.act || '').split(',').indexOf(DEV) >= 0);
+  return { label: (g.status === 'over' ? '✓ ' : '') + label, dot: dot };
+}
+function renderTabs() {
+  const used = [];
+  for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
+  let free = -1;
+  if (GAMES.length) for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) { free = i; break; }
+  if (used.length <= 1 && !GAMES[curSlot]) { $('tabs').innerHTML = ''; return; }
+  $('tabs').innerHTML = used.map(function (i) {
+    const t = tabInfo(GAMES[i]);
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '">' + esc(t.label) + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+  }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
+}
+$('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
+
+function next() {           // copy of S with moveNo bumped
+  const ns = JSON.parse(JSON.stringify(S));
+  ns.moveNo = S.moveNo + 1;
+  return ns;
+}
+
+function poll() {
+  if (busy || document.hidden) return;
+  store.get(function (st) { if (st !== undefined && !busy) apply(st); });
+}
+
+function apply(st, mine) {
+  const firstLoad = !loaded;
+  const changed = firstLoad || (!S !== !st) || (S && st && (st.gid !== S.gid || st.moveNo !== S.moveNo));
+  loaded = true;
+  const before = S && stepKey(S);
+  S = st;
+  renderTabs();
+  if (!changed) return;
+  const sameStep = stepKey(S) === before;
+  if (!sameStep) { draft.text = ''; draft.wager = ''; }   // a new question for me: start blank
+  // Someone else's move mid-typing (the final): refresh everything but the form, so the keyboard stays up.
+  const typing = document.activeElement && $('actions').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName);
+  if (sameStep && typing) { renderTabs(); renderPlayers(); renderMain(); renderMsg(); botTick(); return; }
+  render();
+  buzzIfMyTurn();
+  botTick();
+}
+// Changes whenever the thing I might be typing for changes.
+function stepKey(s) {
+  if (!s) return '';
+  return [s.gid, s.status, s.round, s.cur ? s.cur.c + '.' + s.cur.r + '.' + s.cur.at + '.' + (s.cur.wager != null) : ''].join('|');
+}
+
+// ---------- helpers ----------
+function me() { return S && S.players ? S.players.findIndex(function (p) { return p.dev === DEV; }) : -1; }
+function name(i) { return S.players[i] ? S.players[i].name : '?'; }
+function addLog(ns, line) { ns.log = [line].concat(ns.log || []).slice(0, 12); }
+function shown(a) { return String(a || '').split('|')[0]; }
+function responder(s) { s = s || S; return s.status === 'clue' && s.cur ? s.cur.order[s.cur.at] : -1; }
+function boardMax(round) { return round >= 2 ? 2000 : 1000; }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+// ---------- judging responses ----------
+// Case, accents, spaces and punctuation never count, and neither do "What is" etc. or a leading "the/a/an".
+// Also forgiven: small typos in longer answers (1 slip from 5 letters, 2 from 10), a plural "s",
+// and extra words borrowed from the clue ("green paint" when the clue says paint). Numbers must be exact.
+function words(s) {
+  let t = String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    .replace(/&/g, ' AND ').replace(/['’]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim();
+  t = t.replace(/^(WHAT|WHO|WHERE|WHEN|WHICH) (IS|ARE|WAS|WERE) /, '');
+  t = t.replace(/^(THE|A|AN) /, '');
+  return t ? t.split(' ') : [];
+}
+function norm(s) { return words(s).join(''); }
+// Typos between a and b (an adjacent swap counts as one); anything over max comes back as max + 1.
+function edits(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2 = null, prev = [];
+  for (let j = 0; j <= b.length; j++) prev.push(j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur.push(v);
+      if (v < best) best = v;
+    }
+    if (best > max) return max + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[b.length];
+}
+function slack(n) { return n >= 10 ? 2 : n >= 5 ? 1 : 0; }
+function closeTo(r, o) {           // both already letters/digits only
+  if (!r || !o) return false;
+  if (r === o) return true;
+  if (/[0-9]/.test(r + o)) return false;
+  if (o.length >= 3 && (r === o + 'S' || r === o + 'ES' || o === r + 'S' || o === r + 'ES')) return true;
+  return edits(r, o, slack(o.length)) <= slack(o.length);
+}
+// Same number of words: each word is judged on its own, so "Vitamin C" isn't "Vitamin A".
+// Otherwise (spacing differs, like "Walle" for "WALL-E") the letters are compared as one run.
+function closeWords(rw, ow) {
+  if (!rw.length) return false;
+  if (rw.length === ow.length) return rw.every(function (w, i) { return closeTo(w, ow[i]); });
+  return closeTo(rw.join(''), ow.join(''));
+}
+// 'exact', 'close' or '' (wrong). clue is the clue text, for spotting borrowed words.
+function judge(resp, answer, clue) {
+  const rw = words(resp), r = rw.join('');
+  if (!r) return '';
+  const cw = words(clue);
+  let best = '';
+  String(answer).split('|').forEach(function (opt) {
+    const ow = words(opt), o = ow.join('');
+    if (!o || best === 'exact') return;
+    if (r === o) { best = 'exact'; return; }
+    const kept = rw.filter(function (w) { return cw.indexOf(w) < 0 || ow.indexOf(w) >= 0; });
+    if (closeWords(rw, ow) || closeWords(kept, ow)) best = 'close';
+  });
+  return best;
+}
+function isRight(resp, answer, clue) { return !!judge(resp, answer, clue); }
+
+// ---------- building a board ----------
+function buildBoard(ns, round, cb) {
+  ns.usedCats = ns.usedCats || [];
+  const src = ns.settings.source;
+  const nOnline = src === 'online' ? 6 : src === 'mixed' ? 2 : 0;
+  const finish = function (online) {
+    const cats = online.slice(0, 6).map(function (c) { return { name: c.name, src: 'online', clues: c.clues }; });
+    let pool = CLUES.filter(function (c) { return ns.usedCats.indexOf(c.name) < 0; });
+    if (pool.length < 6 - cats.length) { ns.usedCats = []; pool = CLUES.slice(); }
+    shuffle(pool).slice(0, 6 - cats.length).forEach(function (c) {
+      ns.usedCats.push(c.name);
+      cats.push({ name: c.name, src: 'built-in', clues: c.clues.map(function (x) { return { q: x.q, a: x.a }; }) });
+    });
+    shuffle(cats);
+    cats.forEach(function (c) { c.clues.forEach(function (cl, r) { cl.v = 200 * round * (r + 1); cl.used = false; cl.dd = false; cl.who = null; }); });
+    const ddCats = shuffle([0, 1, 2, 3, 4, 5]).slice(0, round >= 2 ? 2 : 1);
+    ddCats.forEach(function (c) { cats[c].clues[1 + Math.floor(Math.random() * 4)].dd = true; });
+    ns.board = { cats: cats };
+    cb();
+  };
+  if (!nOnline) return finish([]);
+  const avoid = (ns.board ? ns.board.cats : []).map(function (c) { return c.name; });
+  store.online(nOnline, avoid, finish);
+}
+
+// ---------- actions ----------
+function newGid() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function newGame(nm, settings) {
+  commit({
+    app: 'answers', gid: newGid(), moveNo: 0, status: 'lobby', settings: settings,
+    players: [{ dev: DEV, name: nm, score: 0 }].concat(BOT_LEVELS[settings.opp] ? [{ dev: BOT_DEV, name: 'Computer', score: 0, level: settings.opp }] : []),
+    round: 0, control: 0, board: null, cur: null, last: null,
+    final: null, usedCats: [], usedFinals: [], log: [nm + (BOT_LEVELS[settings.opp] ? ' started a game against the computer (' + BOT_LEVELS[settings.opp].label.toLowerCase() + ').' : ' started a new game.')]
+  });
+}
+function closeGame() {
+  if (!S || busy) return;
+  busy = true; render();
+  store.close(S.gid, function (st) { busy = false; apply(st); toast('Game closed. This tab is free.'); });
+}
+function rematch() {
+  const ns = next();
+  ns.gid = newGid(); ns.moveNo = 0;
+  ns.players.forEach(function (p) { p.score = 0; });
+  ns.round = 0; ns.board = null; ns.cur = null; ns.last = null; ns.final = null; ns.log = [];
+  startRound(ns);
+}
+function join(nm) {
+  act(function (ns) {
+    if (ns.players.length >= MAX_SEATS || ns.status !== 'lobby') return false;
+    ns.players.push({ dev: DEV, name: nm, score: 0 });
+    addLog(ns, nm + ' joined.');
+  });
+}
+function claimSeat(i) {
+  act(function (ns) { ns.players[i].dev = DEV; addLog(ns, ns.players[i].name + ' is now playing on this phone.'); });
+}
+function startRound(ns) {             // ns already bumped; builds a board then saves
+  busy = true; render();
+  $('msg').textContent = 'Building the board…';
+  buildBoard(ns, ns.round + 1, function () {
+    busy = false;
+    ns.round += 1;
+    ns.status = 'pick'; ns.cur = null; ns.last = null;
+    if (ns.round > 1) {               // the player in last place picks first
+      let low = 0;
+      ns.players.forEach(function (p, i) { if (p.score < ns.players[low].score) low = i; });
+      ns.control = low;
+    } else ns.control = Math.floor(Math.random() * ns.players.length);   // who picks first is random
+    addLog(ns, (ns.round === 1 ? 'Round 1' : 'Double round') + '! ' + ns.players[ns.control].name + ' picks first.');
+    commit(ns);
+  });
+}
+function nextRound() {
+  if (S.status !== 'roundEnd' || me() < 0) return;
+  const ns = next();
+  if (ns.round < ns.settings.rounds) return startRound(ns);
+  startFinal(ns);
+  commit(ns);
+}
+function startFinal(ns) {
+  ns.cur = null;
+  const inn = ns.players.map(function (p, i) { return i; }).filter(function (i) { return ns.players[i].score > 0; });
+  if (!inn.length) { ns.status = 'over'; ns.final = null; addLog(ns, 'Nobody finished above $0, so there\'s no final clue.'); return; }
+  ns.usedFinals = ns.usedFinals || [];
+  let pool = FINALS.map(function (f, i) { return i; }).filter(function (i) { return ns.usedFinals.indexOf(i) < 0; });
+  if (!pool.length) { ns.usedFinals = []; pool = FINALS.map(function (f, i) { return i; }); }
+  const k = pool[Math.floor(Math.random() * pool.length)];
+  ns.usedFinals.push(k);
+  ns.final = { cat: FINALS[k].cat, q: FINALS[k].q, a: FINALS[k].a, in: inn, wager: {}, resp: {}, lead: {}, ok: {} };
+  ns.status = 'finalWager';
+  addLog(ns, 'Final clue! The category is ' + FINALS[k].cat + '. Make your wagers.');
+}
+
+// Every turn action takes an optional `who` (a player's dev id). It's left out when you tap;
+// the computer player passes its own id, and its moves are made by the host's phone.
+function pickClue(c, r, who) {
+  const D = who || DEV;
+  act(function (ns) {
+    const cl = ns.board.cats[c].clues[r];
+    if (ns.status !== 'pick' || ns.players[ns.control].dev !== D || cl.used) return false;
+    cl.used = true;
+    const order = [ns.control];
+    if (!cl.dd) for (let k = 1; k < ns.players.length; k++) order.push((ns.control + k) % ns.players.length);
+    ns.cur = { c: c, r: r, picker: ns.control, order: order, at: 0, tries: [], dd: cl.dd, wager: cl.dd ? null : cl.v };
+    ns.status = 'clue';
+    addLog(ns, ns.players[ns.control].name + ' picked ' + ns.board.cats[c].name + ' for ' + money(cl.v) + (cl.dd ? '. It\'s a Daily Double!' : '.'));
+  });
+}
+function ddWager(w, who) {
+  const D = who || DEV;
+  act(function (ns) {
+    const cur = ns.cur, p = ns.players[cur.picker];
+    if (ns.status !== 'clue' || !cur.dd || cur.wager != null || p.dev !== D) return false;
+    const max = Math.max(p.score, boardMax(ns.round));
+    if (!(w >= 5 && w <= max)) { toast('Wager between $5 and ' + money(max) + '.'); return false; }
+    cur.wager = Math.floor(w);
+    addLog(ns, p.name + ' wagered ' + money(cur.wager) + ' on the Daily Double.');
+  });
+}
+function respond(lead, text, who) {
+  const D = who || DEV;
+  act(function (ns) {
+    const cur = ns.cur, pi = responder(ns), p = ns.players[pi];
+    if (pi < 0 || p.dev !== D || cur.wager == null) return false;
+    const cl = ns.board.cats[cur.c].clues[cur.r];
+    const j = judge(text, cl.a, cl.q), ok = !!j, val = cur.wager;
+    p.score += ok ? val : -val;
+    cur.tries.push({ p: pi, lead: lead, text: text, ok: ok });
+    addLog(ns, p.name + ': "' + lead + ' ' + text + '?" ' + (ok ? (j === 'close' ? 'Close enough (' + shown(cl.a) + '), +' : 'Correct, +') + money(val) + '!' : 'No, -' + money(val) + '.'));
+    if (ok) return resolve(ns, pi);
+    moveOn(ns);
+  });
+}
+function pass(who) {
+  const D = typeof who === 'string' ? who : DEV;
+  act(function (ns) {
+    const cur = ns.cur, pi = responder(ns), p = ns.players[pi];
+    if (pi < 0 || p.dev !== D || cur.dd) return false;
+    cur.tries.push({ p: pi, pass: true });
+    addLog(ns, p.name + ' passed.');
+    moveOn(ns);
+  });
+}
+function moveOn(ns) {
+  ns.cur.at += 1;
+  if (ns.cur.at >= ns.cur.order.length) resolve(ns, -1);
+}
+function resolve(ns, winner) {
+  const cur = ns.cur, cat = ns.board.cats[cur.c], cl = cat.clues[cur.r];
+  cl.who = winner;
+  if (winner >= 0) ns.control = winner;
+  else addLog(ns, 'Nobody got it. It was: ' + shown(cl.a) + '.');
+  ns.last = { cat: cat.name, q: cl.q, a: shown(cl.a), v: cur.wager, dd: cur.dd, tries: cur.tries, who: winner };
+  ns.cur = null;
+  const left = ns.board.cats.some(function (c) { return c.clues.some(function (x) { return !x.used; }); });
+  if (left) { ns.status = 'pick'; return; }
+  ns.status = 'roundEnd';
+  addLog(ns, 'The board is clear!');
+}
+function seatOf(who) { return who ? S.players.findIndex(function (p) { return p.dev === who; }) : me(); }
+function finalWager(w, who) {
+  const mine = seatOf(who);
+  act(function (ns) {
+    const f = ns.final, p = ns.players[mine];
+    if (ns.status !== 'finalWager' || f.in.indexOf(mine) < 0 || f.wager[mine] !== undefined) return false;
+    if (!(w >= 0 && w <= p.score)) { toast('Wager between $0 and ' + money(p.score) + '.'); return false; }
+    f.wager[mine] = Math.floor(w);
+    addLog(ns, p.name + ' locked in a wager.');
+    if (f.in.every(function (i) { return f.wager[i] !== undefined; })) { ns.status = 'finalAnswer'; addLog(ns, 'All wagers are in. Here\'s the clue.'); }
+  }, true);
+}
+function finalRespond(lead, text, who) {
+  const mine = seatOf(who);
+  act(function (ns) {
+    const f = ns.final, p = ns.players[mine];
+    if (ns.status !== 'finalAnswer' || f.in.indexOf(mine) < 0 || f.resp[mine] !== undefined) return false;
+    f.resp[mine] = text; f.lead[mine] = lead;
+    addLog(ns, p.name + ' locked in a response.');
+    if (f.in.every(function (i) { return f.resp[i] !== undefined; })) {
+      f.in.forEach(function (i) {
+        f.ok[i] = isRight(f.resp[i], f.a, f.q);
+        ns.players[i].score += f.ok[i] ? f.wager[i] : -f.wager[i];
+      });
+      ns.status = 'over';
+      addLog(ns, 'The answer was ' + shown(f.a) + '.');
+    }
+  }, true);
+}
+
+// ---------- computer player ----------
+// A beatable opponent. It's a normal seat (dev 'bot') whose moves are made by the host's phone,
+// a second or two after its turn comes up. right[] is the chance it knows a clue, by row.
+const BOT_DEV = 'bot';
+const BOT_LEVELS = {
+  easy:   { label: 'Easy',   right: [0.55, 0.45, 0.35, 0.25, 0.15], tryIt: 0.6,  final: 0.3, dd: 0.2 },
+  medium: { label: 'Medium', right: [0.75, 0.65, 0.55, 0.45, 0.35], tryIt: 0.8,  final: 0.5, dd: 0.35 },
+  hard:   { label: 'Hard',   right: [0.9, 0.85, 0.75, 0.65, 0.55],  tryIt: 0.95, final: 0.7, dd: 0.5 }
+};
+function botSeat(s) { s = s || S; return s && s.players ? s.players.findIndex(function (p) { return p.dev === BOT_DEV; }) : -1; }
+function botLevel() { const p = S.players[botSeat()]; return BOT_LEVELS[(p && p.level) || 'medium'] || BOT_LEVELS.medium; }
+function wrongGuess(c, r) {      // a plausible miss: another answer from the same category
+  const others = S.board.cats[c].clues.filter(function (x, k) { return k !== r; }).map(function (x) { return shown(x.a); });
+  return others.length ? others[Math.floor(Math.random() * others.length)] : 'No idea';
+}
+let botTimer = null, botKey = '';
+function botTick() {
+  if (!S || busy || botSeat() < 0 || me() !== 0) return;   // only the host's phone plays for the computer
+  const b = botSeat(), L = botLevel();
+  let fn = null;
+  if (S.status === 'pick' && S.control === b) {
+    fn = function () {
+      const open = [];
+      S.board.cats.forEach(function (c, ci) { c.clues.forEach(function (cl, r) { if (!cl.used) open.push([ci, r]); }); });
+      open.sort(function (x, y) { return x[1] - y[1] || Math.random() - 0.5; });   // usually works from the cheap end
+      const pick = Math.random() < 0.7 ? open[0] : open[Math.floor(Math.random() * open.length)];
+      pickClue(pick[0], pick[1], BOT_DEV);
+    };
+  } else if (S.status === 'clue' && responder() === b) {
+    const cur = S.cur;
+    if (cur.dd && cur.wager == null) {
+      fn = function () {
+        const max = Math.max(S.players[b].score, boardMax(S.round));
+        const w = Math.round(max * L.dd * (0.6 + Math.random() * 0.8) / 100) * 100;
+        ddWager(Math.min(max, Math.max(5, w)), BOT_DEV);
+      };
+    } else {
+      fn = function () {
+        const cl = S.board.cats[cur.c].clues[cur.r];
+        if (!cur.dd && Math.random() > L.tryIt) return pass(BOT_DEV);
+        const right = Math.random() < L.right[cur.r];
+        respond('What is', right ? shown(cl.a) : wrongGuess(cur.c, cur.r), BOT_DEV);
+      };
+    }
+  } else if (S.status === 'finalWager' && S.final.in.indexOf(b) >= 0 && S.final.wager[b] === undefined) {
+    fn = function () {
+      const mine = S.players[b].score;
+      const other = Math.max.apply(null, S.players.map(function (p, i) { return i === b ? -Infinity : p.score; }));
+      let w;
+      if (mine > 2 * other) w = 0;                                       // can't be caught: play it safe
+      else if (mine >= other) w = Math.min(mine, 2 * other - mine + 1);  // stay ahead even if they double up
+      else w = mine;                                                    // behind: go for it
+      finalWager(Math.max(0, Math.floor(w)), BOT_DEV);
+    };
+  } else if (S.status === 'finalAnswer' && S.final.in.indexOf(b) >= 0 && S.final.resp[b] === undefined) {
+    fn = function () { finalRespond('What is', Math.random() < L.final ? shown(S.final.a) : 'No idea', BOT_DEV); };
+  }
+  if (!fn) return;
+  const key = S.gid + ':' + S.moveNo;
+  if (key === botKey) return;    // already scheduled for this moment
+  botKey = key;
+  clearTimeout(botTimer);
+  botTimer = setTimeout(function () {
+    if (!S || busy || S.gid + ':' + S.moveNo !== key) { botKey = ''; return botTick(); }
+    fn();
+  }, BOT_DELAY + Math.random() * BOT_DELAY);
+}
+let BOT_DELAY = 1200;
+
+// ---------- render ----------
+function render() {
+  $('ver').textContent = VERSIONS[0][0];
+  renderTabs();
+  if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); return; }
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  renderPlayers(); renderMain(); renderMsg(); renderActions();
+}
+
+function renderPlayers() {
+  const m = me(), resp = responder();
+  $('players').style.setProperty('--n', S.players.length);
+  $('players').innerHTML = S.players.map(function (p, i) {
+    const on = S.status === 'clue' ? resp === i : S.status === 'pick' ? S.control === i : false;
+    return '<div class="p' + (on ? ' on' : '') + (i === m ? ' me' : '') + '"><div class="nm">' + av(p) + esc(p.name) + '</div>' +
+      '<div class="sc' + (p.score < 0 ? ' neg' : '') + '">' + money(p.score) + '</div></div>';
+  }).join('');
+}
+
+function renderMain() {
+  const M = $('main');
+  if (S.status === 'clue') {
+    const cur = S.cur, cat = S.board.cats[cur.c], cl = cat.clues[cur.r];
+    const showQ = !cur.dd || cur.wager != null;
+    M.innerHTML = '<div id="clue"><div class="meta"><span>' + esc(cat.name) + '</span><span class="val">' + (cur.dd ? 'Daily Double' + (cur.wager != null ? ' · ' + money(cur.wager) : '') : money(cl.v)) + '</span></div>' +
+      '<div class="q">' + (showQ ? esc(cl.q) : '<span class="dd">DAILY<br>DOUBLE</span>') + '</div>' +
+      '<div class="tries">' + cur.tries.map(tryLine).join('') + '</div></div>';
+    return;
+  }
+  if (S.status === 'finalWager' || S.status === 'finalAnswer' || (S.status === 'over' && S.final)) {
+    const f = S.final, showQ = S.status !== 'finalWager';
+    let res = '';
+    if (S.status === 'over') {
+      res = '<div class="ans">' + esc(shown(f.a)) + '</div><div class="tries">' + f.in.map(function (i) {
+        return '<div class="t">' + esc(name(i)) + ': "' + esc(f.lead[i] + ' ' + f.resp[i]) + '?" <b class="' + (f.ok[i] ? 'ok' : 'bad') + '">' + (f.ok[i] ? '+' : '-') + money(f.wager[i]) + '</b></div>';
+      }).join('') + '</div>';
+    }
+    M.innerHTML = '<div id="clue"><div class="meta"><span>Final · ' + esc(f.cat) + '</span></div>' +
+      '<div class="q">' + (showQ ? esc(f.q) : esc(f.cat)) + '</div>' + res + '</div>';
+    return;
+  }
+  // the board
+  let h = S.board.cats.map(function (c) {
+    const long = Math.max.apply(null, c.name.split(/\s+/).map(function (w) { return w.length; }));   // shrink long words so they don't split
+    return '<div class="hd' + (c.src === 'online' ? ' online' : '') + (long >= 11 ? ' w11' : long >= 9 ? ' w10' : long >= 8 ? ' w8' : '') + '">' + esc(c.name) + '</div>';
+  }).join('');
+  const canPick = S.status === 'pick' && S.control === me() && !busy;
+  for (let r = 0; r < 5; r++) S.board.cats.forEach(function (c, ci) {
+    const cl = c.clues[r];
+    if (cl.used) h += '<div class="v used' + (cl.who >= 0 ? ' right' : cl.who === -1 ? ' wrong' : '') + '"></div>';
+    else h += '<button class="v" data-c="' + ci + '" data-r="' + r + '"' + (canPick ? '' : ' disabled') + '>' + money(cl.v) + '</button>';
+  });
+  M.innerHTML = '<div id="board">' + h + '</div>';
+  $('board').onclick = function (e) { const b = e.target.closest('button'); if (b && !b.disabled) pickClue(+b.dataset.c, +b.dataset.r); };
+}
+function tryLine(t) {
+  if (t.pass) return '<div class="t">' + esc(name(t.p)) + ' passed</div>';
+  return '<div class="t">' + esc(name(t.p)) + ': "' + esc(t.lead + ' ' + t.text) + '?" <b class="' + (t.ok ? 'ok">✓' : 'bad">✗') + '</b></div>';
+}
+
+function renderMsg() {
+  const L = S.last;
+  let top;
+  if (S.status === 'pick' && L) {
+    const lastTry = L.tries.length ? L.tries[L.tries.length - 1] : null;
+    top = (L.who >= 0 ? esc(name(L.who)) + ' got it' + (lastTry && !lastTry.pass ? ' (+' + money(L.v) + ')' : '') + ': ' : 'Nobody got it: ') + '<span class="a">' + esc(L.a) + '</span>';
+  } else top = esc((S.log || [])[0] || '');
+  $('msg').innerHTML = '<div>' + top + '</div>' + (S.log || []).slice(1, 3).map(function (l) { return '<div class="old">' + esc(l) + '</div>'; }).join('');
+}
+
+function answerForm(btnLabel, withPass) {
+  return '<div class="answer"><select id="lead">' + LEADS.map(function (l) { return '<option' + (l === draft.lead ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select>' +
+    '<input id="resp" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="your response" value="' + esc(draft.text) + '"></div>' +
+    '<div class="btns">' + (withPass ? '<button id="bPass"' + (busy ? ' disabled' : '') + '>Pass</button>' : '') +
+    '<button class="go" id="bResp"' + (busy ? ' disabled' : '') + '>' + btnLabel + '</button></div>';
+}
+function bindAnswer(fn) {
+  $('lead').onchange = function () { draft.lead = this.value; };
+  $('resp').oninput = function () { draft.text = this.value; };
+  const go = function () { const t = $('resp').value.trim(); if (!t) return toast('Type a response, or pass.'); fn(draft.lead, t); };
+  $('bResp').onclick = go;
+  $('resp').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  if ($('bPass')) $('bPass').onclick = pass;
+}
+function wagerForm(max, min) {
+  return '<div class="answer"><input id="wager" type="number" inputmode="numeric" min="' + min + '" max="' + max + '" placeholder="Wager ($' + min + '–' + max.toLocaleString('en-US') + ')" value="' + esc(draft.wager) + '"></div>' +
+    '<div class="btns"><button id="bMax"' + (busy ? ' disabled' : '') + '>All in (' + money(max) + ')</button><button class="primary" id="bWager"' + (busy ? ' disabled' : '') + '>Wager</button></div>';
+}
+function bindWager(fn, max) {
+  $('wager').oninput = function () { draft.wager = this.value; };
+  const go = function () { const w = parseInt($('wager').value, 10); if (isNaN(w)) return toast('Enter a wager.'); fn(w); };
+  $('bWager').onclick = go;
+  $('wager').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  $('bMax').onclick = function () { fn(max); };
+}
+
+function renderActions() {
+  const a = $('actions'), m = me();
+  const dis = busy ? ' disabled' : '';
+  a.onclick = null;
+  if (m < 0) {
+    a.innerHTML = '<div class="note">You\'re watching. If you\'re one of these players on a new phone:</div>' +
+      S.players.map(function (p, i) { return p.dev === BOT_DEV ? '' : '<button data-claim="' + i + '"' + dis + '>I\'m ' + esc(p.name) + '</button>'; }).join('');
+    a.onclick = function (e) { const b = e.target.closest('button'); if (b && b.dataset.claim) claimSeat(+b.dataset.claim); };
+    return;
+  }
+  if (S.status === 'pick') {
+    a.innerHTML = '<div class="note">' + (S.control === m ? 'Your pick. Tap a clue.' : 'Waiting for ' + esc(name(S.control)) + ' to pick…') + '</div>';
+    return;
+  }
+  if (S.status === 'clue') {
+    const cur = S.cur, pi = responder();
+    if (cur.dd && cur.wager == null) {
+      if (pi !== m) { a.innerHTML = '<div class="note">' + esc(name(pi)) + ' is making a Daily Double wager…</div>'; return; }
+      const max = Math.max(S.players[m].score, boardMax(S.round));
+      a.innerHTML = '<div class="note">Daily Double! How much do you want to wager?</div>' + wagerForm(max, 5);
+      bindWager(ddWager, max);
+      return;
+    }
+    if (pi !== m) {
+      const done = cur.order.indexOf(m) >= 0 && cur.order.indexOf(m) < cur.at;
+      a.innerHTML = '<div class="note">' + (done ? 'Your turn is over. ' : '') + 'Waiting for ' + esc(name(pi)) + (cur.at > 0 ? ' to try a steal…' : ' to answer…') + '</div>';
+      return;
+    }
+    a.innerHTML = '<div class="note">' + (cur.at > 0 ? 'Your chance to steal! ' : '') + (cur.dd ? 'Answer for ' + money(cur.wager) + '.' : 'Right +' + money(cur.wager) + ', wrong -' + money(cur.wager) + '. Passing costs nothing.') + '</div>' +
+      answerForm('Answer', !cur.dd);
+    bindAnswer(respond);
+    return;
+  }
+  if (S.status === 'roundEnd') {
+    const last = S.round >= S.settings.rounds;
+    a.innerHTML = '<div class="note">Round ' + S.round + ' is over.</div><button class="primary" id="bNext"' + dis + '>' + (last ? 'Go to the final clue' : 'Start the Double round') + '</button>';
+    $('bNext').onclick = nextRound;
+    return;
+  }
+  if (S.status === 'finalWager' || S.status === 'finalAnswer') {
+    const f = S.final, inIt = f.in.indexOf(m) >= 0;
+    const key = S.status === 'finalWager' ? 'wager' : 'resp';
+    const waiting = f.in.filter(function (i) { return f[key][i] === undefined; }).map(name);
+    if (!inIt) { a.innerHTML = '<div class="note">Only players above $0 play the final. Waiting for ' + esc(waiting.join(' & ')) + '…</div>'; return; }
+    if (f[key][m] !== undefined) { a.innerHTML = '<div class="note">Locked in. Waiting for ' + esc(waiting.join(' & ')) + '…</div>'; return; }
+    if (S.status === 'finalWager') {
+      const max = S.players[m].score;
+      a.innerHTML = '<div class="note">Wager any amount up to ' + money(max) + '. The others can\'t see it.</div>' + wagerForm(max, 0);
+      bindWager(finalWager, max);
+    } else {
+      a.innerHTML = '<div class="note">One response. Others don\'t see it until everyone\'s in.</div>' + answerForm('Lock in', false);
+      bindAnswer(finalRespond);
+    }
+    return;
+  }
+  if (S.status === 'over') {
+    const ranked = S.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (x, y) { return y.p.score - x.p.score; });
+    a.innerHTML = '<div class="card final" style="width:100%"><h2>Final scores</h2>' +
+      ranked.map(function (r, k) { return '<div class="seat"><span>' + (k + 1) + '. ' + av(r.p) + esc(r.p.name) + '</span><span class="big">' + money(r.p.score) + '</span></div>'; }).join('') +
+      '</div><button class="primary" id="bRe"' + dis + '>Rematch (same players)</button><button id="bNew"' + dis + '>New game</button>';
+    $('bRe').onclick = rematch;
+    $('bNew').onclick = function () { setupSheet(); };
+  }
+}
+
+function renderLobby() {
+  const L = $('lobby');
+  if (!S) {
+    L.innerHTML = loaded ? '<div class="card"><h2>New game</h2><div class="small">Pick a clue, answer in the form of a question, steal what the other player misses. Play another person on their own phone, or the computer.</div>' + setupForm() + '<button class="primary" id="bCreate" style="width:100%;margin-top:8px">Create game</button></div>'
+      : '<div class="card small center">Loading…</div>';
+    if (loaded) bindSetup('bCreate');
+    return;
+  }
+  const m = me(), host = m === 0;
+  let h = '<div class="card"><h2>Lobby</h2>' + S.players.map(function (p, i) {
+    return '<div class="seat"><span>' + av(p) + esc(p.name) + (p.level ? ' <span class="small">(' + BOT_LEVELS[p.level].label.toLowerCase() + ')</span>' : '') + (i === 0 ? ' <span class="small">(host)</span>' : '') + (i === m ? ' <span class="small">(you)</span>' : '') + '</span></div>';
+  }).join('') +
+    '<div class="small" style="margin-top:8px">' + (S.settings.rounds === 2 ? 'Round 1 + Double round' : 'One round') + ' + final · Clues: ' + ({ mixed: 'Built-in + online', builtin: 'Built-in', online: 'Online' })[S.settings.source] + '</div></div>';
+  if (m < 0 && S.players.length < MAX_SEATS) {
+    h += '<div class="card"><h2>Join</h2><input id="jName" maxlength="14" placeholder="Your name" value="' + esc(lsGet('answers-name') || '') + '"><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+  } else if (m < 0) {
+    h += '<div class="card small">The game is full.</div>';
+  }
+  if (host) h += '<button class="primary" id="bStart" style="width:100%"' + (busy ? ' disabled' : '') + '>' + (S.players.length >= 2 ? 'Start game' : 'Start solo (or wait for the other player)') + '</button>';
+  else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(S.players[0].name) + ' to start…</div>';
+  h += '<div class="small center" style="margin-top:12px">The other player joins from their Answers tab.</div>';
+  // keep a half-typed name if a poll re-renders the lobby
+  const typed = $('jName') ? $('jName').value : null;
+  L.innerHTML = h;
+  if ($('jName') && typed !== null) $('jName').value = typed;
+  if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('answers-name', n); join(n); };
+  if ($('bStart')) $('bStart').onclick = function () { if (!busy) startRound(next()); };
+}
+
+function setupForm() {
+  return '<div class="row"><label>Your name</label><input id="sName" maxlength="14" value="' + esc(lsGet('answers-name') || '') + '"></div>' +
+    '<div class="row"><label>Opponent</label><select id="sOpp">' + [['person', 'The other player'], ['easy', 'Computer: easy'], ['medium', 'Computer: medium'], ['hard', 'Computer: hard']].map(function (o) {
+      return '<option value="' + o[0] + '"' + ((lsGet('answers-opp') || 'person') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="row"><label>Rounds</label><select id="sRounds"><option value="2" selected>Round 1 + Double</option><option value="1">One round</option></select></div>' +
+    '<div class="row"><label>Clues</label><select id="sSrc"><option value="mixed" selected>Built-in + online</option><option value="builtin">Built-in only</option><option value="online">Online only (slower)</option></select></div>';
+}
+function bindSetup(btnId, after) {
+  $(btnId).onclick = function () {
+    const n = $('sName').value.trim();
+    if (!n) return toast('Enter your name');
+    lsSet('answers-name', n);
+    if (after) after();
+    lsSet('answers-opp', $('sOpp').value);
+    newGame(n, { rounds: +$('sRounds').value, source: $('sSrc').value, opp: $('sOpp').value });
+  };
+}
+
+// ---------- sheets ----------
+function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+$('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
+
+function setupSheet() {
+  openSheet('<h3>Start a new game</h3><div class="small">This replaces the game in this tab for everyone.</div>' + setupForm() +
+    '<div class="row" style="margin-top:12px"><button id="nCancel" style="flex:1">Cancel</button><button class="primary" id="nGo" style="flex:2">Create game</button></div>');
+  $('nCancel').onclick = closeSheet;
+  bindSetup('nGo', closeSheet);
+}
+function menuSheet() {
+  openSheet('<h3>Answers</h3>' +
+    '<div class="card"><h2>How to play</h2><div class="small">The player in control <b>picks a clue</b> and answers first. ' +
+    'Pick <b>What is / Who is</b> and type the rest. Capitals, spaces, punctuation and a leading "the" don\'t matter, and small typos, a plural "s" or an extra word from the clue are forgiven. Numbers have to be exact. ' +
+    'Right adds the clue\'s value and gives you the next pick. Wrong subtracts it. <b>Pass</b> costs nothing. If the picker misses or passes, the others get to <b>steal</b> in turn. ' +
+    '<b>Daily Doubles</b> are hidden on the board (1 in round 1, 2 in the Double round): only the picker plays, and wagers up to their score or the top clue value. ' +
+    'In the <b>final</b>, everyone above $0 secretly wagers, then answers one clue. Pick <b>Computer</b> as the opponent for a solo game; easy misses a lot, hard rarely does. Categories marked • came from Open Trivia DB.</div></div>' +
+    (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
+    '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
+    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +
+    '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
+    '<button id="mClose" style="width:100%">Close</button>');
+  $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
+  if ($('mClose2')) $('mClose2').onclick = function () {
+    openSheet('<h3>Close this game?</h3><div class="small">It ends for everyone and the tab is freed. This can\'t be undone.</div>' +
+      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">Close game</button></div>');
+    $('cNo').onclick = closeSheet;
+    $('cYes').onclick = function () { closeSheet(); closeGame(); };
+  };
+  $('mClose').onclick = closeSheet;
+}
+$('menuBtn').onclick = menuSheet;
+
+function toast(t) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+function buzzIfMyTurn() {
+  const key = S ? stepKey(S) : '';
+  const g = S && (S.status === 'pick' ? S.control : responder());
+  const mine = S && g === me() && g >= 0;
+  if (mine && key !== lastTurnKey && lastTurnKey && navigator.vibrate) navigator.vibrate(120);
+  lastTurnKey = key;
+}
+
+// ---------- start ----------
+render();
+window.addEventListener('gamesprofiles', function () { if (S && S.status !== 'lobby') renderPlayers(); else render(); });
+store.get(function (st) { if (st !== undefined) apply(st); else { loaded = true; render(); toast('Could not load the game.'); } });
+setInterval(poll, 4000);
+document.addEventListener('visibilitychange', poll);
+</script>
+</body>
+</html>
