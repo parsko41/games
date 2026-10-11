@@ -68,7 +68,7 @@ Avoid server changes when the same thing can be done in the pages.
 
 ## How the person uploads a file (tell them this)
 1. Download the file you gave them.
-2. On github.com (signed in to the shared account), open **parsko41/games**, then the folder the
+2. On github.com (signed in to **their own** GitHub account; both players are collaborators on the repo), open **parsko41/games**, then the folder the
    file belongs in (or stay on the main page for files like `sw.js`, `index.html`, `CHANGELOG.md`).
 3. **Add file → Upload files**, drag the file in (same name replaces the old one), type a short note
    like "Wheelhouse 1.2: bigger buttons", tap **Commit changes**.
