@@ -1,5 +1,8 @@
 # Games app: changelog
 
+## Wheelhouse 1.2 (2026-10-11)
+- The clue under the puzzle is twice as big (28px, was 14px).
+
 ## 1.0 (2026-10-10)
 First version of the combined app.
 - One app with a tab per game (Tilework, Wheelhouse, Answers), installable on Android.

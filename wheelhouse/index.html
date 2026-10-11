@@ -34,7 +34,7 @@
   #catRow{text-align:center;margin:5px 0 0;font-size:17px;line-height:1.3}
   #cat{font-weight:700;letter-spacing:1px;text-transform:uppercase}
   #sub{color:var(--dim);font-size:14px;margin-left:8px}
-  #hint{text-align:center;color:var(--dim);font-size:14px}
+  #hint{text-align:center;color:var(--dim);font-size:28px}
 
   /* players */
   #players{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:6px;margin:6px 0}
@@ -148,6 +148,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.2', '2026-10-11', 'The clue under the puzzle is twice as big.'],
   ['1.1', '2026-10-11', 'Bigger text everywhere, and much bigger letter keys at the bottom. The value strip is a little shorter so a whole turn still fits on the screen.'],
   ['1.0', '2026-10-10', 'Part of the Games app: one player and avatar for all three games (picked once per phone), 2 players per game, and the first spinner is chosen at random. Same game otherwise.'],
   ['v4', '2026-10-03', 'The puzzle answer is now scrambled in the save file on Drive, so peeking at the file doesn\'t give it away. A game already in progress gets scrambled on its next move.'],
