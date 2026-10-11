@@ -33,14 +33,30 @@ function waiting() {
     })
     .catch(function () { return null; });
 }
+// One notification per waiting game, each with its own colored icon (red T, green W, blue A).
+// Games that are no longer waiting lose their notification.
 self.addEventListener('push', function (e) {
   e.waitUntil(waiting().then(function (o) {
     const games = o ? Object.keys(NAMES).filter(function (g) { return o[g] > 0; }) : [];
     const total = games.reduce(function (t, g) { return t + o[g]; }, 0);
     try { if (self.navigator.setAppBadge && total) self.navigator.setAppBadge(total); } catch (err) {}
-    const body = games.length ? 'Your move in ' + games.map(function (g) { return NAMES[g]; }).join(' and ') + '.' : 'Your move.';
-    return self.registration.showNotification('Games', {
-      body: body, icon: 'icon-192.png', tag: 'turn', renotify: true, data: { game: games[0] || '' }
+    return self.registration.getNotifications().then(function (old) {
+      const shown = {};
+      old.forEach(function (n) {   // clear finished games (and the old single "turn" alert)
+        const g = String(n.tag || '').replace(/^turn-?/, '');
+        if (/^turn/.test(n.tag || '') && (!g || !(o && o[g] > 0))) n.close();
+        else shown[n.tag] = n.body;
+      });
+      if (!games.length) {
+        return self.registration.showNotification('Games', { body: 'Your move.', icon: 'icon-192.png', tag: 'turn' });
+      }
+      return Promise.all(games.map(function (g) {
+        const body = o[g] > 1 ? o[g] + ' games are waiting on you.' : 'Your move.';
+        if (shown['turn-' + g] === body) return null;   // already showing: don't buzz again
+        return self.registration.showNotification(NAMES[g], {
+          body: body, icon: 'icon-' + g + '.png', tag: 'turn-' + g, renotify: true, data: { game: g }
+        });
+      }));
     });
   }));
 });

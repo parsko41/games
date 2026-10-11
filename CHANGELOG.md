@@ -1,5 +1,11 @@
 # Games app: changelog
 
+## Games 1.2 (2026-10-11): color-coded alerts
+- Each waiting game gets its own notification with its own icon: red T (Tilework), green W (Wheelhouse), blue A (Answers). A game's notification goes away when it's no longer waiting; the Android icon dot goes when none are left.
+- The dots on the game tabs use the same colors.
+- Android can't draw custom dots on an app icon (one launcher dot only). On the Galaxy S24, Settings → Home screen → App icon badges → Show with number shows how many alerts are waiting.
+- Files: `icon-tilework.png`, `icon-wheelhouse.png`, `icon-answers.png`; `sw.js` uses notification tags `turn-<game>`.
+
 ## Answers 1.3 (2026-10-11): bigger text under the clue
 - The message under the clue (26px), the instructions line (24px), the buttons (30px) and the answer box (24/26px) are about 1.6× bigger. Double was tried but long clues and the phone keyboard wouldn't fit.
 - These sizes are for a 360px-wide screen (Galaxy S24) and grow with the screen (`clamp(…, vw, …)`), about 14% bigger on a 412px-wide Pixel 9.
