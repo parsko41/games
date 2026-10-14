@@ -1,5 +1,11 @@
 # Games app: changelog
 
+## Games 1.4 (2026-10-13): Garden, a new game
+- **Garden 0.2 (new, fourth tab).** A 2-player game to design together: shape the plot (alternate adding soil), then grow it. Plants grow overnight if watered, weeds choke and overrun the other player's thirsty plants, water is scarce, a "Wait a Week" card runs a growth step right now. Busy-day protection: actions and water bank up to 2 days, growth is one step a night, dry plants wilt but never die, vacation shields, and a "while you were away" recap. Opens with an intro screen that explains the game and lists the open questions. Numbers (plot size, game length, actions/water per day, bank, shields, scoring) are settings picked when creating a garden; everything unsettled is under ☰ → Rules and in `garden/RULES.md`.
+- App 1.4: Garden tab added (amber turn dot); tab labels slightly smaller so four fit on a 360px phone. `shim.js`: Garden gets the shared player (`garden-device` / `garden-name`). `sw.js`: turn alerts name the game "Garden".
+- **Games API 1.3 (needs Luke):** adds the `garden` game (saves in `Games/Garden/Save data`, made automatically) and the Garden turn dot (your turn while shaping; "a new garden day is waiting" while growing). Paste `server/Code.gs` into the Games API project, then Deploy → Manage deployments → pencil → Version: **New version** → Deploy. Don't make a new deployment. After it deploys, the line under your avatar should read "Games API 1.3".
+- `test/fake-server.js`: pretend Drive has a `Games` parent folder so the Garden folder lookup can be tested. `test/e2e.js` was not run for this change; Garden was tested with two simulated phones against the real `Code.gs` on the fake Drive.
+
 ## Games 1.3 (2026-10-11): Games API version in the app
 - Tap your avatar: the bottom line now says "Games app 1.3 · Games API 1.2", so you can tell the two apart and check that a Games API deploy took.
 - How: the page reads the version from the API link's health check (a GET of the `/exec` link, `{app: 'Games API 1.2'}`); no server change. Shows "not reachable" if the API can't be reached.

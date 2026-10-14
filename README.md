@@ -3,7 +3,7 @@
 > **Using an AI to make changes?** Tell it to read `AGENTS.md` first:
 > https://raw.githubusercontent.com/parsko41/games/main/AGENTS.md
 
-Tilework, Wheelhouse and Answers in one app: one icon on the phone, a tab per game, one player
+Tilework, Wheelhouse, Answers and Garden in one app: one icon on the phone, a tab per game, one player
 (name and avatar) per phone.
 
 - The pages (this repo) are hosted free on **GitHub Pages**.
@@ -25,7 +25,7 @@ tap "I'm <your name>" once and it continues where it left off.
 1. In Drive, open the **Games** folder → New → More → **Google Apps Script**. Name it `Games API`.
 2. Replace everything in `Code.gs` with `server/Code.gs` from this repo, then save.
 3. Pick **setup** in the function menu → Run → approve the permissions.
-   The log should list the three save folders and say the word list was found.
+   The log should list the four save folders (Garden's, `Games/Garden/Save data`, is created next to Tilework's the first time) and say the word list was found.
 4. **Deploy → New deployment** → type **Web app**.
    Execute as: **Me**. Who has access: **Anyone**. Deploy, then copy the **Web app URL** (ends in `/exec`).
 5. Optional check: open that URL in a browser. It should show `{"ok":true,...}`.
@@ -64,7 +64,7 @@ tap "I'm <your name>" once and it continues where it left off.
 | `shim.js` | Lets the games call the Games API, shares the player and avatars |
 | `config.js` | The Games API link (the only setting) |
 | `manifest.webmanifest`, `sw.js`, `icon*` | What makes it installable on Android |
-| `tilework/`, `wheelhouse/`, `answers/` | The games |
+| `tilework/`, `wheelhouse/`, `answers/`, `garden/` | The games (`garden/RULES.md` holds Garden's rules and open questions) |
 | `server/Code.gs` | The Games API (Apps Script) |
 | `test/` | Local fake server and end-to-end test |
 

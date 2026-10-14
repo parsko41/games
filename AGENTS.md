@@ -4,10 +4,11 @@ You're helping one of two players (Luke or his gaming partner) change their priv
 They are not programmers and usually work from a phone. Read this whole file first.
 
 ## What this is
-"Games": three 2-player turn-based games in one installable web app (Android home-screen icon).
+"Games": four 2-player games in one installable web app (Android home-screen icon).
 - **Tilework**: Scrabble-style word game. `tilework/index.html`
 - **Wheelhouse**: Wheel of Fortune-style. `wheelhouse/index.html`
 - **Answers**: Jeopardy-style, with an optional computer opponent. `answers/src/` (built into `answers/index.html`)
+- **Garden** (new, still being designed): shape a plot together, then grow it overnight with plants, weeds and scarce water. `garden/index.html`. Its rules and open questions live in `garden/RULES.md`.
 
 Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`, branch `main`, root).
 
@@ -60,6 +61,12 @@ by `node answers/src/build.js` (it pastes the clue lists in at `/*CLUES*/` and `
   Clue format: `# Category` line, then 5 lines `clue :: answer|other accepted answer`, easiest first.
   Final clues: `Category :: clue :: answer`. No backticks in clue text.
 
+### Garden notes
+- **Rules first.** When a Garden rule is decided or changed, update `garden/RULES.md` and the `DECIDED` / `OPEN` lists near the top of `garden/index.html` (shown under ☰ → Rules) so they match. Many numbers are settings picked when a garden is created (see `SETTING_FIELDS`); prefer a setting over a hard-coded change when the players are still undecided.
+- **Growth runs on the real clock, with no server timer.** `settle(S, now)` applies any nights that have passed (deterministic, so both phones agree) and the result is saved with the next player action. The garden day rolls over at 3 AM Pacific (`dayIndex`, and `gardenDay_()` in `server/Code.gs`: keep them identical). After 3 unattended nights the garden naps.
+- One garden at a time (save slot 0). Players act whenever they have actions, not in strict turns, except while shaping. Every save still bumps `moveNo` by exactly 1.
+- The pure rules (`tick`, `doAction`, `settle`, `scores`) have no screen code, so they can be tested in Node by evaluating the ENGINE block. The opening screen is controlled by `SHOW_INTRO` at the top of the script.
+
 ### Server changes (`server/Code.gs`) need Luke
 The Games API runs from Luke's Google account. If a change needs `server/Code.gs`, give the new
 file and say that **Luke** must paste it into the "Games API" Apps Script project (in the Games folder
@@ -86,6 +93,8 @@ Mistakes are recoverable: GitHub keeps every old version (open the file → Hist
 | `tilework/index.html` | Tilework (whole game in one file) |
 | `wheelhouse/index.html` | Wheelhouse (whole game in one file, puzzle list inside) |
 | `answers/src/` | Answers source + clue lists; `answers/index.html` is built from it |
+| `garden/index.html` | Garden (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
+| `garden/RULES.md` | Garden rules: what's decided and the open questions the players are settling together |
 | `server/Code.gs` | Games API (Apps Script, runs in Luke's account) |
 | `test/` | Fake server + end-to-end test (Node + Playwright) |
 | `README.md`, `CHANGELOG.md` | Setup notes and change history |

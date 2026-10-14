@@ -39,7 +39,8 @@
   const KEYS = {
     tilework: ['tilework-id', 'tilework-name'],
     wheelhouse: ['wheelhouse-device', 'wheelhouse-name'],
-    answers: ['answers-device', 'answers-name']
+    answers: ['answers-device', 'answers-name'],
+    garden: ['garden-device', 'garden-name']
   };
   if (player && player.dev && KEYS[GAME]) {
     lsSet(KEYS[GAME][0], player.dev);

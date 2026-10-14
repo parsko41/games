@@ -15,13 +15,14 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
   button{font:inherit;color:inherit;border:0;cursor:pointer}
-  #bar{position:fixed;left:0;right:0;top:0;height:calc(44px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 6px 0;background:var(--bar);display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line);z-index:5}
-  #bar .tab{flex:1 1 0;min-width:0;height:34px;border-radius:10px;background:transparent;color:var(--dim);font-weight:700;font-size:14px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+  #bar{position:fixed;left:0;right:0;top:0;height:calc(44px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 6px 0;background:var(--bar);display:flex;align-items:center;gap:3px;border-bottom:1px solid var(--line);z-index:5}
+  #bar .tab{flex:1 1 0;min-width:0;height:34px;border-radius:10px;background:transparent;color:var(--dim);font-weight:700;font-size:12px;letter-spacing:-.2px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
   #bar .tab.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 -2px 0 var(--gold)}
   #bar .tab .dot{position:absolute;top:5px;right:6px;min-width:11px;height:11px;border-radius:6px;background:var(--ok)}
   #bar .tab[data-game=tilework] .dot{background:#e5484d}     /* each game's color, same as its alert icon */
   #bar .tab[data-game=wheelhouse] .dot{background:#35c46a}
   #bar .tab[data-game=answers] .dot{background:#3b82f6}
+  #bar .tab[data-game=garden] .dot{background:#f59e0b}
   #me{flex:0 0 auto;width:38px;height:34px;border-radius:10px;background:var(--panel);font-size:20px;line-height:34px;padding:0}
   #frames{position:fixed;left:0;right:0;bottom:0;top:calc(44px + env(safe-area-inset-top))}
   #frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
@@ -53,6 +54,7 @@
   <button class="tab" data-game="tilework">Tilework</button>
   <button class="tab" data-game="wheelhouse">Wheelhouse</button>
   <button class="tab" data-game="answers">Answers</button>
+  <button class="tab" data-game="garden">Garden</button>
   <button id="me" aria-label="Player">🙂</button>
 </div>
 <div id="frames"></div>
@@ -64,8 +66,8 @@
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = '1.3';
-  const GAMES = ['tilework', 'wheelhouse', 'answers'];
+  const APP_VERSION = '1.4';
+  const GAMES = ['tilework', 'wheelhouse', 'answers', 'garden'];
   const EMOJI = ['🦊','🐻','🐼','🐨','🐯','🦁','🐸','🐙','🦉','🐢','🦄','🐝','🐞','🦋','🐬','🐳','🦖','🌵','🌻','🍄','🍕','🍩','⚡','🔥','🌈','⭐','🌙','🚀','🚂','🎸','🎲','📷'];
   const $ = function (id) { return document.getElementById(id); };
   const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
