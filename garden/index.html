@@ -78,6 +78,17 @@
   details summary{cursor:pointer;font-weight:600;padding:3px 0}
   .q{margin:8px 0;padding:8px 10px;background:#141b36;border-radius:10px}
   .q b{display:block;margin-bottom:2px}
+  textarea{font:inherit;font-size:16px;color:var(--ink);background:#0c1124;border:1px solid #34407a;border-radius:10px;padding:10px 12px;width:100%;resize:vertical}
+  .qc{margin:6px 0;background:#141b36;border-radius:10px;padding:8px 10px}
+  .qc summary{cursor:pointer;font-weight:600;display:flex;gap:8px;align-items:baseline;list-style:none}
+  .qc summary::-webkit-details-marker{display:none}
+  .qc .qt{flex:1}
+  .qc textarea{margin-top:4px}
+  .qc .oth{margin:6px 0;white-space:pre-wrap}
+  .qc .oth1 b{color:var(--gold)}
+  .qrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .qrow button{padding:8px 18px}
+  .chip{font-size:12px;color:var(--gold);white-space:nowrap;font-weight:600}
 
   #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
   #sheet.hidden{display:none}
@@ -124,6 +135,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['0.4', '2026-10-13', 'Open questions are now answered in the app: each of you writes your own answer and either of you records the decision. Saved to Drive (Games/Garden/Save data) and shown on both phones, so nothing needs editing on GitHub. Also "Show as text" to copy everything out.'],
   ['0.3', '2026-10-13', 'Renamed to Gardens, the name the players chose. Same game.'],
   ['0.2', '2026-10-13', 'Opening screen: explains the game and lists the open questions, with Continue at the top and Play / Open questions at the bottom. Shown every time Garden opens (turn it off with SHOW_INTRO). Also under ☰ → Read the intro again.'],
   ['0.1', '2026-10-13', 'First playable draft. Shape the plot, then grow it: plants, weeds, scarce water, Wait a Week cards, banked actions, vacation shields. Unsettled rules are listed under ☰ → Rules, and the numbers are settings you pick when you create a game.']
@@ -144,25 +156,25 @@ const DECIDED = [
   ['Name', 'The game is called Gardens.']
 ];
 const OPEN = [
-  ['How big is the plot, and how long is a game?', 'Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.'],
-  ['How many actions and how much water per day?', 'Set when you create a game. Default 3 actions and 4 water a day, banking up to 2 days. Does 3 / 4 feel tight enough?'],
-  ['What counts as winning?', 'Set when you create a game: "Plant value" (seedling 1, growing 2, bloom 3) or "Plant count". Other ideas: most blooms, biggest connected garden, weeds count as territory.'],
-  ['Should Wait a Week let you choose what grows?', 'Right now it\'s a normal night for everyone. Could let the player pick which tiles get the growth.'],
-  ['Should the other player see which plants are watered?', 'Right now yes (a blue drop). Hiding it would add bluffing, but make it harder to judge threats.'],
-  ['Should weeds ever score?', 'Right now no: they only hurt the other player. Could give 1 point per weed, or make them cost more than a seedling.'],
-  ['Should weeds be limited?', 'Right now a weed is 1 action, on any empty tile. Could cap weeds per player, or only allow them near the other player\'s plants.'],
-  ['Should pulling a weed be harder?', 'Right now 1 action, only for weeds touching your plants. A big weed could cost 2.'],
-  ['How does the garden handle long absences?', 'Right now after 3 unattended nights the garden naps (the missed nights are skipped and don\'t count toward game length).'],
-  ['When does the garden day roll over?', 'Right now 3 AM Pacific for both of you.'],
-  ['Green dot on the tab', 'Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).'],
-  ['More than one garden at a time?', 'Right now one garden at a time. Wheelhouse has tabs for several.'],
-  ['Wild cards?', 'Weather, pests, bees, seasons? Nothing in yet.'],
-  ['How should it look?', 'Emoji plants for now. Colors, sounds and animations are all open.']
+  ['How big is the plot, and how long is a game?', 'Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.', 'size'],
+  ['How many actions and how much water per day?', 'Set when you create a game. Default 3 actions and 4 water a day, banking up to 2 days. Does 3 / 4 feel tight enough?', 'apd'],
+  ['What counts as winning?', 'Set when you create a game: "Plant value" (seedling 1, growing 2, bloom 3) or "Plant count". Other ideas: most blooms, biggest connected garden, weeds count as territory.', 'win'],
+  ['Should Wait a Week let you choose what grows?', 'Right now it\'s a normal night for everyone. Could let the player pick which tiles get the growth.', 'wait'],
+  ['Should the other player see which plants are watered?', 'Right now yes (a blue drop). Hiding it would add bluffing, but make it harder to judge threats.', 'wet'],
+  ['Should weeds ever score?', 'Right now no: they only hurt the other player. Could give 1 point per weed, or make them cost more than a seedling.', 'weedscore'],
+  ['Should weeds be limited?', 'Right now a weed is 1 action, on any empty tile. Could cap weeds per player, or only allow them near the other player\'s plants.', 'weedlimit'],
+  ['Should pulling a weed be harder?', 'Right now 1 action, only for weeds touching your plants. A big weed could cost 2.', 'pull'],
+  ['How does the garden handle long absences?', 'Right now after 3 unattended nights the garden naps (the missed nights are skipped and don\'t count toward game length).', 'absence'],
+  ['When does the garden day roll over?', 'Right now 3 AM Pacific for both of you.', 'rollover'],
+  ['Green dot on the tab', 'Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).', 'dot'],
+  ['More than one garden at a time?', 'Right now one garden at a time. Wheelhouse has tabs for several.', 'multi'],
+  ['Wild cards?', 'Weather, pests, bees, seasons? Nothing in yet.', 'wild'],
+  ['How should it look?', 'Emoji plants for now. Colors, sounds and animations are all open.', 'look']
 ];
 
 // ---------- opening screen ----------
 const SHOW_INTRO = true;     // set to false once the rules are settled and the intro isn't needed any more
-const INTRO_STORY = 'Gardens is a two-player game for Luke and Amy. You start by shaping a plot of soil together, taking turns adding tiles. Then you grow it over several days: plant seedlings, water them, and drop weeds on each other. Whoever ends with more garden wins.';
+const INTRO_STORY = 'Gardens is a two-player game for Player 1 and Player 2. You start by shaping a plot of soil together, taking turns adding tiles. Then you grow it over several days: plant seedlings, water them, and drop weeds on each other. Whoever ends with more garden wins.';
 const INTRO_STEPS = [
   ['1. Shape the plot', 'Take turns adding soil tiles. Each new tile has to touch the soil already there. A long thin garden has more edges to attack; a compact one is easier to defend.'],
   ['2. Grow it, a little each day', 'Every day you get a few actions and some water. Plant (next to your own plants), Water (so it grows overnight), drop a Weed (hurts only the other player), or Pull one of their weeds that touches your plants.'],
@@ -406,6 +418,54 @@ const store = {
       .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); busy = false; render(); }).closeGame(0, gid);
   }
 };
+
+// ---------- open questions: answers you both can edit ----------
+// Saved as a second save file next to the game (slot 4), so closing or restarting a garden never wipes them.
+// Each player's answer is their own entry and the decision is shared, so two phones saving at once just merge.
+const NOTES_SLOT = 4;
+let notes = null;           // latest from the server: {gid, moveNo, q: {id: {a: {dev: {n, t, u}}, d: {t, by, u}}}}
+let questionsTimer = null;
+function emptyNotes() { return { app: 'gardens-notes', gid: 'notes1', moveNo: 0, q: {} }; }
+function cleanText(s) { return String(s || '').replace(/\s+$/g, '').slice(0, 600); }
+function noteAnswer(N, id, dev, name, text, now) {
+  const q = N.q[id] = N.q[id] || {};
+  q.a = q.a || {};
+  const t = cleanText(text);
+  if (t) q.a[dev] = { n: name, t: t, u: now }; else delete q.a[dev];
+}
+function noteDecision(N, id, name, text, now) {
+  const q = N.q[id] = N.q[id] || {};
+  const t = cleanText(text);
+  if (t) q.d = { t: t, by: name, u: now }; else delete q.d;
+}
+function decidedCount(N) { return OPEN.filter(function (d) { return N && N.q[d[2]] && N.q[d[2]].d; }).length; }
+function chipFor(id) {
+  const q = notes && notes.q[id];
+  if (q && q.d) return '✅ decided';
+  const n = q && q.a ? Object.keys(q.a).length : 0;
+  return n ? '💬 ' + n : '';
+}
+function getNotes(cb) {
+  google.script.run.withSuccessHandler(function (r) { notes = r.state || null; cb(true); })
+    .withFailureHandler(function () { cb(false); }).getState(NOTES_SLOT);
+}
+// Applies fn to the newest saved notes and saves. If the other player saved first, tries again on top of theirs.
+function saveNotes(fn, done, known, tries) {
+  tries = tries || 0;
+  const go = function (cur) {
+    const base = cur ? clone(cur) : emptyNotes();
+    fn(base);
+    base.moveNo = cur ? cur.moveNo + 1 : 0;
+    google.script.run.withSuccessHandler(function (r) {
+      if (r.ok) { notes = r.state; return done(true); }
+      if (tries < 3) return saveNotes(fn, done, r.state || null, tries + 1);
+      done(false);
+    }).withFailureHandler(function () { done(false); }).saveState(JSON.stringify(base), NOTES_SLOT);
+  };
+  if (known !== undefined) go(known);
+  else google.script.run.withSuccessHandler(function (r) { go(r.state || null); }).withFailureHandler(function () { done(false); }).getState(NOTES_SLOT);
+}
+function stopQuestionsPoll() { if (questionsTimer) { clearInterval(questionsTimer); questionsTimer = null; } }
 
 function next() {            // a copy of what you see, ready to change and save
   const ns = clone(V);
@@ -661,7 +721,7 @@ function renderLobby() {
 
 // ---------- sheets ----------
 function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
-function closeSheet() { $('sheet').classList.add('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); stopQuestionsPoll(); }
 $('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
 function confirmSheet(title, text, yes, fn) {
   openSheet('<h3>' + esc(title) + '</h3><div class="small">' + esc(text) + '</div><div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Not now</button><button class="primary" id="cYes" style="flex:1">' + esc(yes) + '</button></div>');
@@ -682,20 +742,97 @@ function introScreen() {
     '<div class="body">' +
     '<div class="card"><h2>What is it?</h2><div>' + esc(INTRO_STORY) + '</div></div>' +
     '<div class="card"><h2>How it plays</h2>' + INTRO_STEPS.map(function (d) { return '<div class="step"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
-    '<div class="card"><h2>Still to decide (' + OPEN.length + ')</h2><div class="small" style="margin-bottom:6px">This is a game we are designing together, so some rules are guesses. Each question below has a current answer in the game. Play a few rounds, talk it over, then write your answers in <b>garden/RULES.md</b> (Luke and Amy lines under each question). Tap <b>Open questions</b> for the details of each one. Many of the numbers are settings you pick when you create a garden, so you can simply try both.</div><ol class="small">' +
-    OPEN.map(function (d) { return '<li>' + esc(d[0]) + '</li>'; }).join('') + '</ol></div>' +
+    '<div class="card"><h2>Still to decide (' + OPEN.length + ')</h2><div class="small" style="margin-bottom:6px">This is a game we are designing together, so some rules are guesses. Each question below has a current answer in the game. Play a few rounds, then tap <b>Open questions</b>: each of you writes your own answer, you see each other\'s, and once you agree one of you records the decision. Many of the numbers are settings you pick when you create a garden, so you can simply try both.</div><div class="small" id="iCount" style="margin-bottom:6px;color:var(--gold)"></div><ol class="small">' +
+    OPEN.map(function (d) { return '<li>' + esc(d[0]) + ' <span class="chip" data-chip="' + d[2] + '"></span></li>'; }).join('') + '</ol></div>' +
     '<div class="btns"><button id="iQ">Open questions</button><button class="primary" id="iGo2">Play</button></div>' +
     '<div class="ver">Gardens ' + VERSIONS[0][0] + '</div></div>';
   I.classList.remove('hidden'); I.scrollTop = 0;
   const go = function () { I.classList.add('hidden'); };
   $('iGo1').onclick = go; $('iGo2').onclick = go;
   $('iQ').onclick = questionsSheet;
+  getNotes(function (ok) { if (ok) paintIntro(); });
+}
+function paintIntro() {
+  document.querySelectorAll('#intro [data-chip]').forEach(function (el) { el.textContent = chipFor(el.dataset.chip); });
+  const c = $('iCount'); if (c) c.textContent = decidedCount(notes) + ' of ' + OPEN.length + ' decided';
+}
+function myNoteName() { return lsGet('garden-name') || 'Player'; }
+function questionCard(d, i) {
+  return '<details class="qc" data-id="' + d[2] + '"><summary><span class="qt">' + (i + 1) + '. ' + esc(d[0]) + '</span><span class="chip" data-chip="' + d[2] + '"></span></summary>' +
+    '<div class="small" style="margin:6px 0">Now: ' + esc(d[1]) + '</div>' +
+    '<div class="small">Your answer</div><textarea data-f="mine" rows="3" maxlength="600" placeholder="What do you think?"></textarea>' +
+    '<div class="oth small" data-oth></div>' +
+    '<div class="small" style="margin-top:8px">Decision (fill in once you agree)</div><textarea data-f="dec" rows="2" maxlength="600" placeholder="Not decided yet"></textarea>' +
+    '<div class="qrow"><button class="primary qsave">Save</button><span class="small qstat"></span></div></details>';
+}
+// Shows what's saved. A box you're in the middle of editing is left alone.
+function paintQuestions(root) {
+  OPEN.forEach(function (d) {
+    const id = d[2], card = root.querySelector('details[data-id="' + id + '"]');
+    if (!card) return;
+    const q = (notes && notes.q[id]) || {};
+    const srv = { mine: (q.a && q.a[DEV] && q.a[DEV].t) || '', dec: (q.d && q.d.t) || '' };
+    ['mine', 'dec'].forEach(function (f) {
+      const ta = card.querySelector('textarea[data-f="' + f + '"]');
+      if (cleanText(ta.value) === (ta.dataset.orig || '')) ta.value = srv[f];
+      ta.dataset.orig = srv[f];
+    });
+    const others = Object.keys(q.a || {}).filter(function (k) { return k !== DEV; }).map(function (k) { return q.a[k]; });
+    card.querySelector('[data-oth]').innerHTML = others.length ? others.map(function (o) { return '<div class="oth1"><b>' + esc(o.n) + ':</b> ' + esc(o.t) + '</div>'; }).join('') : 'The other player hasn\'t answered yet.';
+    card.querySelector('[data-chip]').textContent = chipFor(id);
+  });
+  const c = $('qCount'); if (c) c.textContent = (notes ? decidedCount(notes) : 0) + ' of ' + OPEN.length + ' decided';
 }
 function questionsSheet() {
-  openSheet('<h3>Open questions</h3><div class="small" style="margin-bottom:8px">What the game does right now, and what we could change it to. Settings can be changed when you create a garden; the rest are rule changes.</div>' +
-    OPEN.map(function (d, i) { return '<div class="q"><b>' + (i + 1) + '. ' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') +
-    '<button id="qClose" style="width:100%;margin-top:10px">Back</button>');
+  openSheet('<h3>Open questions</h3><div class="small" id="qCount" style="color:var(--gold);margin-bottom:4px"></div>' +
+    '<div class="small" style="margin-bottom:8px">Tap a question, write what you think, then Save. You each see the other\'s answer. Once you agree, fill in the decision. Settings can be changed when you create a garden; the rest are rule changes.</div>' +
+    '<div id="qList">' + OPEN.map(questionCard).join('') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button id="qText" style="flex:1">Show as text</button><button id="qClose" style="flex:1">Back</button></div>');
+  const list = $('qList');
+  paintQuestions(list);
+  getNotes(function (ok) {
+    if (ok) paintQuestions(list); else { const c = $('qCount'); if (c) c.textContent = 'Could not load the answers right now.'; }
+  });
+  stopQuestionsPoll();
+  questionsTimer = setInterval(function () {
+    if (document.hidden || !$('qList')) return;
+    getNotes(function (ok) { if (ok && $('qList')) paintQuestions($('qList')); });
+  }, 20000);
+  list.onclick = function (e) {
+    const b = e.target.closest('.qsave'); if (!b) return;
+    const card = b.closest('details'), id = card.dataset.id, stat = card.querySelector('.qstat');
+    const mine = card.querySelector('textarea[data-f="mine"]'), dec = card.querySelector('textarea[data-f="dec"]');
+    const dm = cleanText(mine.value) !== (mine.dataset.orig || ''), dd = cleanText(dec.value) !== (dec.dataset.orig || '');
+    if (!dm && !dd) { stat.textContent = 'Nothing new to save.'; return; }
+    b.disabled = true; stat.textContent = 'Saving…';
+    const now = Date.now(), who = myNoteName(), mv = mine.value, dv = dec.value;
+    saveNotes(function (N) {
+      if (dm) noteAnswer(N, id, DEV, who, mv, now);
+      if (dd) noteDecision(N, id, who, dv, now);
+    }, function (ok) {
+      b.disabled = false;
+      stat.textContent = ok ? 'Saved ✓' : 'Could not save. Try again.';
+      if (ok && $('qList')) paintQuestions($('qList'));
+      setTimeout(function () { stat.textContent = ''; }, 3000);
+    });
+  };
+  $('qText').onclick = textSheet;
   $('qClose').onclick = closeSheet;
+}
+function notesAsText() {
+  return 'Gardens: open questions\n\n' + OPEN.map(function (d, i) {
+    const q = (notes && notes.q[d[2]]) || {};
+    const lines = [(i + 1) + '. ' + d[0], 'Now: ' + d[1]];
+    Object.keys(q.a || {}).forEach(function (k) { lines.push(q.a[k].n + ': ' + q.a[k].t); });
+    lines.push(q.d ? 'DECIDED (' + q.d.by + '): ' + q.d.t : 'Not decided yet');
+    return lines.join('\n');
+  }).join('\n\n');
+}
+function textSheet() {
+  stopQuestionsPoll();
+  openSheet('<h3>Open questions as text</h3><div class="small" style="margin-bottom:6px">Press and hold in the box to select and copy it, for example to paste into Discord.</div><textarea id="tText" rows="14" readonly></textarea><div class="row"><button id="tBack" style="flex:1">Back</button></div>');
+  $('tText').value = notesAsText();
+  $('tBack').onclick = questionsSheet;
 }
 $('sheet').style.zIndex = 40;
 
@@ -703,8 +840,7 @@ function menuSheet() {
   openSheet('<h3>Gardens</h3>' +
     '<div class="card"><h2>Rules</h2><div class="small" style="margin-bottom:6px">Decided so far:</div>' +
     DECIDED.map(function (d) { return '<div class="q"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
-    '<div class="card"><h2>Still open</h2><div class="small" style="margin-bottom:6px">Play a few games, then decide together. Settings can be changed when you start a new garden. The rest are rule changes (see RULES.md in the repo).</div>' +
-    OPEN.map(function (d) { return '<div class="q"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
+    '<div class="card"><h2>Still open</h2><div class="small" style="margin-bottom:8px">' + OPEN.length + ' questions to settle together. Answer them in the app: you each write an answer, then record the decision.</div><button id="mQ" class="primary" style="width:100%">Open questions</button></div>' +
     (V ? '<div class="card"><h2>This garden</h2><div class="small">' + esc(settingsLine(V.settings)) + '</div></div>' : '') +
     (V && V.log.length ? '<div class="card"><h2>Recent</h2>' + V.log.slice(-15).reverse().map(function (l) { return '<div class="small" style="margin-bottom:4px">' + esc(l.t) + '</div>'; }).join('') + '</div>' : '') +
     '<button id="mIntro" style="width:100%;margin-bottom:10px">Read the intro again</button>' +
@@ -713,6 +849,7 @@ function menuSheet() {
     '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
     '<button id="mClose" style="width:100%">Close</button>');
   $('mIntro').onclick = function () { closeSheet(); introScreen(); };
+  $('mQ').onclick = function () { closeSheet(); setTimeout(questionsSheet, 50); };
   $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
   if ($('mClose2')) $('mClose2').onclick = function () {
     confirmSheet('Close this garden?', 'It ends for both of you. This can\'t be undone.', 'Close garden', closeGame);

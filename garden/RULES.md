@@ -1,8 +1,8 @@
 # Gardens: rules and open questions
 
-A 2-player, take-it-slow game for Luke and Amy. Shape a plot together, then grow it overnight and try to take over the other person's corner.
+A 2-player, take-it-slow game for Player 1 and Player 2. Shape a plot together, then grow it overnight and try to take over the other person's corner.
 
-The same list is in the app under ☰ → Rules. **This file is the one to edit** when you decide something: change the line here, then ask Claude to make the game match (or edit `garden/index.html` yourself).
+The same list is in the app under ☰ → Rules, and **you answer the open questions in the app** (☰ → Open questions): each of you writes an answer, then record the decision. Answers are saved on Drive and shown on both phones. This file is the reference copy of the questions; when something is decided, ask Claude to make the game match and add it to the Decided list here.
 
 ## Decided
 
@@ -20,77 +20,49 @@ The same list is in the app under ☰ → Rules. **This file is the one to edit*
 
 ## Still open
 
-Some are settings you pick when you create a game (so you can just try both). The rest are rule changes. For each, write your answer under it, then update the rule.
+Some are settings you pick when you create a game (so you can just try both). The rest are rule changes. Answer them in the app (☰ → Open questions); "Show as text" there copies everything out.
 
 1. **How big is the plot, and how long is a game?**  
-   Now: Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.  
-   Luke: 
-   Amy: 
+   Now: Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.
 
 2. **How many actions and how much water per day?**  
-   Now: Set when you create a game. Default 3 actions and 4 water a day, banking up to 2 days. Does 3 / 4 feel tight enough?  
-   Luke: 
-   Amy: 
+   Now: Set when you create a game. Default 3 actions and 4 water a day, banking up to 2 days. Does 3 / 4 feel tight enough?
 
 3. **What counts as winning?**  
-   Now: Set when you create a game: "Plant value" (seedling 1, growing 2, bloom 3) or "Plant count". Other ideas: most blooms, biggest connected garden, weeds count as territory.  
-   Luke: 
-   Amy: 
+   Now: Set when you create a game: "Plant value" (seedling 1, growing 2, bloom 3) or "Plant count". Other ideas: most blooms, biggest connected garden, weeds count as territory.
 
 4. **Should Wait a Week let you choose what grows?**  
-   Now: Right now it's a normal night for everyone. Could let the player pick which tiles get the growth.  
-   Luke: 
-   Amy: 
+   Now: Right now it's a normal night for everyone. Could let the player pick which tiles get the growth.
 
 5. **Should the other player see which plants are watered?**  
-   Now: Right now yes (a blue drop). Hiding it would add bluffing, but make it harder to judge threats.  
-   Luke: 
-   Amy: 
+   Now: Right now yes (a blue drop). Hiding it would add bluffing, but make it harder to judge threats.
 
 6. **Should weeds ever score?**  
-   Now: Right now no: they only hurt the other player. Could give 1 point per weed, or make them cost more than a seedling.  
-   Luke: 
-   Amy: 
+   Now: Right now no: they only hurt the other player. Could give 1 point per weed, or make them cost more than a seedling.
 
 7. **Should weeds be limited?**  
-   Now: Right now a weed is 1 action, on any empty tile. Could cap weeds per player, or only allow them near the other player's plants.  
-   Luke: 
-   Amy: 
+   Now: Right now a weed is 1 action, on any empty tile. Could cap weeds per player, or only allow them near the other player's plants.
 
 8. **Should pulling a weed be harder?**  
-   Now: Right now 1 action, only for weeds touching your plants. A big weed could cost 2.  
-   Luke: 
-   Amy: 
+   Now: Right now 1 action, only for weeds touching your plants. A big weed could cost 2.
 
 9. **How does the garden handle long absences?**  
-   Now: Right now after 3 unattended nights the garden naps (the missed nights are skipped and don't count toward game length).  
-   Luke: 
-   Amy: 
+   Now: Right now after 3 unattended nights the garden naps (the missed nights are skipped and don't count toward game length).
 
 10. **When does the garden day roll over?**  
-   Now: Right now 3 AM Pacific for both of you.  
-   Luke: 
-   Amy: 
+   Now: Right now 3 AM Pacific for both of you.
 
 11. **Green dot on the tab**  
-   Now: Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).  
-   Luke: 
-   Amy: 
+   Now: Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).
 
 12. **More than one garden at a time?**  
-   Now: Right now one garden at a time. Wheelhouse has tabs for several.  
-   Luke: 
-   Amy: 
+   Now: Right now one garden at a time. Wheelhouse has tabs for several.
 
 13. **Wild cards?**  
-   Now: Weather, pests, bees, seasons? Nothing in yet.  
-   Luke: 
-   Amy: 
+   Now: Weather, pests, bees, seasons? Nothing in yet.
 
 14. **How should it look?**  
-   Now: Emoji plants for now. Colors, sounds and animations are all open.  
-   Luke: 
-   Amy: 
+   Now: Emoji plants for now. Colors, sounds and animations are all open.
 
 ## How a night works (exact order)
 
