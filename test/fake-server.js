@@ -19,11 +19,13 @@ function makeBackend() {
       createFolder(n) { const x = mkFolder(n); d.folders.push(x); return x; },
       getFoldersByName(n) { return iter(d.folders.filter(x => x.name === n)); },
       getFilesByName(n) { return iter(d.files.filter(f => f.name === n)); },
-      createFile(n, c) { const f = mkFile(n, c, d); d.files.push(f); return f; }, getId() { return d.id; }, getUrl() { return 'drive://' + d.id; } };
+      createFile(n, c) { const f = mkFile(n, c, d); d.files.push(f); return f; }, getId() { return d.id; }, getUrl() { return 'drive://' + d.id; },
+      getParents() { return iter(d.parent ? [d.parent] : []); } };
     folders[d.id] = d; return d;
   }
   // Luke's real Drive layout (IDs from the changelogs)
-  const tw = mkFolder('Tilework', '12wPzLtxt5awCZRKolMf--msClkw2e0b3');
+  const gamesRoot = mkFolder('Games');
+  const tw = mkFolder('Tilework', '12wPzLtxt5awCZRKolMf--msClkw2e0b3'); tw.parent = gamesRoot;
   const twSave = mkFolder('Save data', '1dXMZ9SEyzDKnr7D-_RfWjDjWnAo9WpqB'); tw.folders.push(twSave);
   tw.createFile('tilework-words.txt', '0AA\n1B\n0CAT\n2R\n0DOG');
   const wh = mkFolder('Wheelhouse', '1uZxZBBM2XHhdecE2h-kJNyvXLBztgqIx');
@@ -38,6 +40,7 @@ function makeBackend() {
     Logger: { log: () => {} },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] === undefined ? null : props[k], setProperty: (k, v) => { props[k] = String(v); }, getProperties: () => Object.assign({}, props) }) },
     DriveApp: {
+      getRootFolder: () => gamesRoot,
       getFolderById: id => { if (!folders[id]) throw new Error('No folder ' + id); return folders[id]; },
       getFileById: id => { if (!files[id]) throw new Error('No file ' + id); return files[id]; }
     },
@@ -48,7 +51,7 @@ function makeBackend() {
       if (/wikipedia/.test(url)) return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ mostread: { articles: [{ titles: { normalized: 'Golden Gate Park' }, description: 'park in San Francisco' }] } }) };
       return { getResponseCode: () => 404, getContentText: () => '' };
     } },
-    Utilities: { sleep() {}, formatDate: (d) => d.toISOString().slice(0, 10).replace(/-/g, '/') },
+    Utilities: { sleep() {}, formatDate: (d, tz, fmt) => { const s = d.toISOString().slice(0, 10); return /-/.test(fmt || '') ? s : s.replace(/-/g, '/'); } },
     JSON, Math, Date, Object, String, Number, Array, decodeURIComponent, Error
   };
   vm.createContext(ctx);
