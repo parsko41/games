@@ -210,7 +210,7 @@
 
   function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); showApiVersion(); }
 
-  // Version line at the bottom of each sheet: this app, and the Games API (Luke's Apps Script),
+  // Version line at the bottom of each sheet: this app, and the Games API (Player 1's Apps Script),
   // read from the API link's health check (opening the /exec link shows {app: 'Games API 1.2'}).
   let apiVersion = '';
   function verLine() { return '<div class="ver">Games app ' + APP_VERSION + ' · Games API <span id="apiVer">' + (esc(apiVersion) || '…') + '</span></div>'; }

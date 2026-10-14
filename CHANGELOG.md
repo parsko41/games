@@ -1,12 +1,16 @@
 # Games app: changelog
 
+## Gardens 0.4 (2026-10-13): answer the open questions in the app
+- Open questions are answered in the app (☰ → Open questions, or the button on the intro screen): each player writes their own answer, either records the decision, and both see each other's. Saved on Drive as a second save file (`Games/Garden/Save data/garden-state-4.json`), separate from the game, so no server change and no redeploy.
+- Real names removed from the repo's current files (docs, comments, test data), replaced with Player 1 / Player 2. Earlier commits in GitHub's history still contain them.
+
 ## Games 1.5 (2026-10-13): Garden is now called Gardens
 - The game is now called **Gardens** everywhere you see it: tab, page title, intro, menu, turn alerts and docs (Gardens 0.3, app 1.5). Internal ids stay singular (game key `garden`, the `garden/` folder, `garden-*` storage keys, Drive folder `Games/Garden`), so the server and saves are unaffected: no Games API redeploy is needed for the rename.
 
 ## Games 1.4 (2026-10-13): Garden, a new game
 - **Garden 0.2 (new, fourth tab).** A 2-player game to design together: shape the plot (alternate adding soil), then grow it. Plants grow overnight if watered, weeds choke and overrun the other player's thirsty plants, water is scarce, a "Wait a Week" card runs a growth step right now. Busy-day protection: actions and water bank up to 2 days, growth is one step a night, dry plants wilt but never die, vacation shields, and a "while you were away" recap. Opens with an intro screen that explains the game and lists the open questions. Numbers (plot size, game length, actions/water per day, bank, shields, scoring) are settings picked when creating a garden; everything unsettled is under ☰ → Rules and in `garden/RULES.md`.
 - App 1.4: Garden tab added (amber turn dot); tab labels slightly smaller so four fit on a 360px phone. `shim.js`: Garden gets the shared player (`garden-device` / `garden-name`). `sw.js`: turn alerts name the game "Garden".
-- **Games API 1.3 (needs Luke):** adds the `garden` game (saves in `Games/Garden/Save data`, made automatically) and the Garden turn dot (your turn while shaping; "a new garden day is waiting" while growing). Paste `server/Code.gs` into the Games API project, then Deploy → Manage deployments → pencil → Version: **New version** → Deploy. Don't make a new deployment. After it deploys, the line under your avatar should read "Games API 1.3".
+- **Games API 1.3 (needs Player 1):** adds the `garden` game (saves in `Games/Garden/Save data`, made automatically) and the Garden turn dot (your turn while shaping; "a new garden day is waiting" while growing). Paste `server/Code.gs` into the Games API project, then Deploy → Manage deployments → pencil → Version: **New version** → Deploy. Don't make a new deployment. After it deploys, the line under your avatar should read "Games API 1.3".
 - `test/fake-server.js`: pretend Drive has a `Games` parent folder so the Garden folder lookup can be tested. `test/e2e.js` was not run for this change; Garden was tested with two simulated phones against the real `Code.gs` on the fake Drive.
 
 ## Games 1.3 (2026-10-11): Games API version in the app
@@ -19,7 +23,7 @@
 - When the built-in categories (or finals) are all used up, the board fills with fresh online categories (and the final becomes a hard online clue). "Built-in only" games can't do that, so they reuse the categories played longest ago.
 - A second online source, The Trivia API (the-trivia-api.com, free, no key), alongside Open Trivia DB. New categories: Arts & Literature, Film & TV, Science, Food & Drink, Society & Culture. If one site is down the other is used.
 - How: `answers-history.json` in Games/Answers on Drive (`{cats, finals, clues}` of name/fingerprint → day number; entries older than a year are dropped). New API calls `planBoard(names, want, avoid, online)` and `planFinal(keys, online)`; `getOnlineCategories` still works for older pages. The page falls back to the old behavior if the Games API hasn't been updated yet.
-- Needs the new `server/Code.gs` (Luke: paste, save, Deploy → Manage deployments → pencil → New version). The history starts empty, so clues from games before this update can show up once more.
+- Needs the new `server/Code.gs` (Player 1: paste, save, Deploy → Manage deployments → pencil → New version). The history starts empty, so clues from games before this update can show up once more.
 
 ## Games 1.2 (2026-10-11): color-coded alerts
 - Each waiting game gets its own notification with its own icon: red T (Tilework), green W (Wheelhouse), blue A (Answers). A game's notification goes away when it's no longer waiting; the Android icon dot goes when none are left.
@@ -40,7 +44,7 @@
 ## Turn alerts (2026-10-11): Games 1.1, Games API 1.1
 - Tap your avatar → Turn alerts → **Turn on turn alerts**. When a game starts waiting on you, your phone gets a "Your move in Wheelhouse" notification, and Android puts a dot on the Games icon. Tapping it opens that game. "Send a test" checks it works.
 - You don't get an alert for your own move. Alerts clear when you open the app and nothing is waiting.
-- Needs the new `server/Code.gs` (Luke: paste, save, Deploy → Manage deployments → pencil → New version). Run `checkAlerts` once in the editor to check it.
+- Needs the new `server/Code.gs` (Player 1: paste, save, Deploy → Manage deployments → pencil → New version). Run `checkAlerts` once in the editor to check it.
 - How: the phone's push subscription is stored in Script Property `PUSH` ({dev: [{endpoint}]}). After each successful save, `notify_()` compares each subscribed player's `overview()` counts with `PUSH_SEEN` and sends an empty Web Push (VAPID ES256, signed in pure JS with BigInt; key in Script Property `VAPID`) to anyone whose count went up, except the caller (`dev` is now sent with every API call by `shim.js`). `sw.js` gets the push, asks `overview()` what's waiting (player id + API link are kept in the `games-me` cache), and shows the notification.
 
 ## Login names everywhere (2026-10-11): Tilework 1.1, Wheelhouse 1.3, Answers 1.1

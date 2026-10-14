@@ -1,6 +1,6 @@
 # Guide for AI assistants working on this repo
 
-You're helping one of two players (Luke or his gaming partner) change their private game app.
+You're helping one of two players (Player 1 or Player 2) change their private game app.
 They are not programmers and usually work from a phone. Read this whole file first.
 
 ## What this is
@@ -20,8 +20,8 @@ Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`
   app player's id/name into each game's own localStorage keys, and provides
   `GamesApp.avatar(dev, name)`. Pages redraw names on the `gamesprofiles` window event.
 - `config.js` holds the Games API `/exec` URL. Don't change it unless asked.
-- `server/Code.gs` is the **Games API**, a Google Apps Script web app in Luke's Google account.
-  It stores every game as a JSON file in Luke's Google Drive (`Games/<Game>/Save data`), keeps the
+- `server/Code.gs` is the **Games API**, a Google Apps Script web app in Player 1's Google account.
+  It stores every game as a JSON file in Player 1's Google Drive (`Games/<Game>/Save data`), keeps the
   player list (`PROFILES`) and turn summaries in Script Properties, and fetches online clues.
 - `sw.js` makes the app installable, forces a fresh copy of every file on each open, and shows
   turn alerts (Web Push from the Games API; see the "Turn alerts" entry in `CHANGELOG.md`).
@@ -63,14 +63,15 @@ by `node answers/src/build.js` (it pastes the clue lists in at `/*CLUES*/` and `
 
 ### Gardens notes
 - The game is called **Gardens**; internal ids stay singular (game key `garden`, folder `garden/`, `garden-*` storage keys, Drive folder `Games/Garden`) so saves and the server keep working.
+- Open-question answers are saved in a second save file (slot 4, `garden-state-4.json`) by `saveNotes`: each player's answer is separate and the decision is shared, so two phones saving at once merge. The question list is `OPEN`; its third element is a stable id, so don't change an id once answers exist.
 - **Rules first.** When a Garden rule is decided or changed, update `garden/RULES.md` and the `DECIDED` / `OPEN` lists near the top of `garden/index.html` (shown under ☰ → Rules) so they match. Many numbers are settings picked when a garden is created (see `SETTING_FIELDS`); prefer a setting over a hard-coded change when the players are still undecided.
 - **Growth runs on the real clock, with no server timer.** `settle(S, now)` applies any nights that have passed (deterministic, so both phones agree) and the result is saved with the next player action. The garden day rolls over at 3 AM Pacific (`dayIndex`, and `gardenDay_()` in `server/Code.gs`: keep them identical). After 3 unattended nights the garden naps.
 - One garden at a time (save slot 0). Players act whenever they have actions, not in strict turns, except while shaping. Every save still bumps `moveNo` by exactly 1.
 - The pure rules (`tick`, `doAction`, `settle`, `scores`) have no screen code, so they can be tested in Node by evaluating the ENGINE block. The opening screen is controlled by `SHOW_INTRO` at the top of the script.
 
-### Server changes (`server/Code.gs`) need Luke
-The Games API runs from Luke's Google account. If a change needs `server/Code.gs`, give the new
-file and say that **Luke** must paste it into the "Games API" Apps Script project (in the Games folder
+### Server changes (`server/Code.gs`) need Player 1
+The Games API runs from Player 1's Google account. If a change needs `server/Code.gs`, give the new
+file and say that **Player 1** must paste it into the "Games API" Apps Script project (in the Games folder
 on Drive), save, then Deploy → Manage deployments → pencil → Version: **New version** → Deploy.
 Never make a *new* deployment: that creates a new URL and the app would stop connecting.
 Avoid server changes when the same thing can be done in the pages.
@@ -96,6 +97,6 @@ Mistakes are recoverable: GitHub keeps every old version (open the file → Hist
 | `answers/src/` | Answers source + clue lists; `answers/index.html` is built from it |
 | `garden/index.html` | Gardens (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
 | `garden/RULES.md` | Gardens rules: what's decided and the open questions the players are settling together |
-| `server/Code.gs` | Games API (Apps Script, runs in Luke's account) |
+| `server/Code.gs` | Games API (Apps Script, runs in Player 1's account) |
 | `test/` | Fake server + end-to-end test (Node + Playwright) |
 | `README.md`, `CHANGELOG.md` | Setup notes and change history |
