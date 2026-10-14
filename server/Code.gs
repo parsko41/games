@@ -1,4 +1,4 @@
-// Games API 1.2: one Apps Script that stores the saves for Tilework, Wheelhouse and Answers.
+// Games API 1.3: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Luke's Drive.
 //
@@ -24,6 +24,10 @@ const GAMES = {
   answers: {
     file: 'answers-state', parent: '1-gGJ2O0LXzXBdbX3wB6IbgpcLG7wNcwt',           // Games/Answers
     folder: '1KBmbtGoYfsDtKkbL22Gq8RTXruy1lHsw', strict: true, extra: ['getOnlineCategories', 'planBoard', 'planFinal']
+  },
+  garden: {
+    file: 'garden-state', parent: '',                                                    // Games/Garden: made next to Tilework's folder the first time
+    folder: '', strict: true, extra: []
   }
 };
 
@@ -41,7 +45,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.2', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.3', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -93,11 +97,35 @@ function folder_(game) {
   const key = 'FOLDER_' + game;
   const id = props.getProperty(key) || g.folder;
   if (id) { try { const f = DriveApp.getFolderById(id); props.setProperty(key, id); return f; } catch (e) { /* look it up below */ } }
-  const parent = DriveApp.getFolderById(g.parent);
+  const parent = parent_(game);
   const it = parent.getFoldersByName('Save data');
   const f = it.hasNext() ? it.next() : parent.createFolder('Save data');
   props.setProperty(key, f.getId());
   return f;
+}
+
+// The Games/<Game> folder. The first three have fixed IDs. Garden's is found (or made) next to them,
+// so its saves also live in Games/Garden/Save data.
+function parent_(game) {
+  const g = GAMES[game];
+  if (g.parent) return DriveApp.getFolderById(g.parent);
+  const props = PropertiesService.getScriptProperties(), key = 'PARENT_' + game;
+  const id = props.getProperty(key);
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* look it up below */ } }
+  let root = null;
+  try { const up = DriveApp.getFolderById(GAMES.tilework.parent).getParents(); if (up.hasNext()) root = up.next(); } catch (e) { root = null; }
+  if (!root) root = DriveApp.getRootFolder();
+  const name = game.charAt(0).toUpperCase() + game.slice(1);
+  const it = root.getFoldersByName(name);
+  const f = it.hasNext() ? it.next() : root.createFolder(name);
+  props.setProperty(key, f.getId());
+  return f;
+}
+
+// The garden's day number, same as dayIndex() in garden/index.html (rolls over at 3 AM Pacific).
+function gardenDay_() {
+  const p = Utilities.formatDate(new Date(Date.now() - 3 * 3600000), 'America/Los_Angeles', 'yyyy-MM-dd').split('-');
+  return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
 }
 
 function slot_(slot) {
@@ -122,6 +150,11 @@ function summary_(game, s) {
   if (game === 'tilework') {
     return { gid: s.gid, players: s.players, names: s.names || ['', ''], turn: s.turn,
              status: s.status, scores: s.scores, rules: s.rules || null };
+  }
+  if (game === 'garden') {
+    const gd = s.players.map(function (p) { return p.dev; });
+    return { gid: s.gid, status: s.status, names: s.players.map(function (p) { return p.name; }), devs: gd,
+             act: s.status === 'shape' ? (gd[s.turn] || '') : '', day: s.day };
   }
   const devs = s.players.map(function (p) { return p.dev; });
   let act = '';
@@ -242,6 +275,7 @@ function overview(dev, allProps) {
       const seat = g.devs.indexOf(dev);
       if (seat < 0) { if (g.status === 'lobby' && g.devs.length < 2) n++; return; }
       if (g.status === 'over' || g.status === 'lobby') return;
+      if (game === 'garden' && g.status === 'grow') { if (g.day < gardenDay_()) n++; return; }   // a new garden day is waiting
       const acts = String(g.act || '').split(',');
       if (acts.indexOf(dev) >= 0 || g.act === '*') n++;
       else if (seat === 0 && acts.some(function (a) { return a.indexOf('bot') === 0; })) n++;
