@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Garden</title>
+<title>Gardens</title>
 <style>
   :root{
     --bg:#10162b; --panel:#1a2342; --panel2:#222d55; --ink:#eef1ff; --dim:#9aa4c9;
@@ -101,7 +101,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>Garden<small id="ver"></small></h1>
+    <h1>Gardens<small id="ver"></small></h1>
     <div id="phase"></div>
     <button id="menuBtn" aria-label="Menu">☰</button>
   </header>
@@ -124,6 +124,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['0.3', '2026-10-13', 'Renamed to Gardens, the name the players chose. Same game.'],
   ['0.2', '2026-10-13', 'Opening screen: explains the game and lists the open questions, with Continue at the top and Play / Open questions at the bottom. Shown every time Garden opens (turn it off with SHOW_INTRO). Also under ☰ → Read the intro again.'],
   ['0.1', '2026-10-13', 'First playable draft. Shape the plot, then grow it: plants, weeds, scarce water, Wait a Week cards, banked actions, vacation shields. Unsettled rules are listed under ☰ → Rules, and the numbers are settings you pick when you create a game.']
 ];
@@ -139,7 +140,8 @@ const DECIDED = [
   ['Wait a Week card', 'Play it to run a growth step right now for the whole garden. Everyone starts with 1 and earns another every 3rd night.'],
   ['Busy days', 'Unused actions and water bank up to 2 days\' worth. Growth moves one step per night. Plants that don\'t get water wilt, they never die. You also get a "while you were away" recap.'],
   ['Vacation shield', 'Spend one before a busy day: your plants can\'t be hurt that night, but they (and your weeds) don\'t grow either.'],
-  ['First move', 'Who shapes first is chosen at random.']
+  ['First move', 'Who shapes first is chosen at random.'],
+  ['Name', 'The game is called Gardens.']
 ];
 const OPEN = [
   ['How big is the plot, and how long is a game?', 'Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.'],
@@ -155,12 +157,12 @@ const OPEN = [
   ['Green dot on the tab', 'Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).'],
   ['More than one garden at a time?', 'Right now one garden at a time. Wheelhouse has tabs for several.'],
   ['Wild cards?', 'Weather, pests, bees, seasons? Nothing in yet.'],
-  ['What is it called, and how should it look?', 'Working title "Garden". Emoji plants for now.']
+  ['How should it look?', 'Emoji plants for now. Colors, sounds and animations are all open.']
 ];
 
 // ---------- opening screen ----------
 const SHOW_INTRO = true;     // set to false once the rules are settled and the intro isn't needed any more
-const INTRO_STORY = 'Garden is a two-player game for Luke and Amy. You start by shaping a plot of soil together, taking turns adding tiles. Then you grow it over several days: plant seedlings, water them, and drop weeds on each other. Whoever ends with more garden wins.';
+const INTRO_STORY = 'Gardens is a two-player game for Luke and Amy. You start by shaping a plot of soil together, taking turns adding tiles. Then you grow it over several days: plant seedlings, water them, and drop weeds on each other. Whoever ends with more garden wins.';
 const INTRO_STEPS = [
   ['1. Shape the plot', 'Take turns adding soil tiles. Each new tile has to touch the soil already there. A long thin garden has more edges to attack; a compact one is easier to defend.'],
   ['2. Grow it, a little each day', 'Every day you get a few actions and some water. Plant (next to your own plants), Water (so it grows overnight), drop a Weed (hurts only the other player), or Pull one of their weeds that touches your plants.'],
@@ -651,7 +653,7 @@ function renderLobby() {
   } else if (m < 0) h += '<div class="card small">This garden is full.</div>';
   if (host) h += '<button class="primary" id="bStart" style="width:100%"' + (V.players.length >= 2 && !busy ? '' : ' disabled') + '>' + (V.players.length >= 2 ? 'Start shaping' : 'Waiting for the other player to join…') + '</button>';
   else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(V.players[0].name) + ' to start…</div>';
-  h += '<div class="small center" style="margin-top:12px">The other player joins from their Garden tab.</div>';
+  h += '<div class="small center" style="margin-top:12px">The other player joins from their Gardens tab.</div>';
   L.innerHTML = h;
   if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('garden-name', n); joinGame(n); };
   if ($('bStart')) $('bStart').onclick = startGame;
@@ -676,14 +678,14 @@ function setupSheet() {
 // ---------- opening screen ----------
 function introScreen() {
   const I = $('intro');
-  I.innerHTML = '<div class="top"><h2>🌱 Garden</h2><button class="primary" id="iGo1">Continue</button></div>' +
+  I.innerHTML = '<div class="top"><h2>🌱 Gardens</h2><button class="primary" id="iGo1">Continue</button></div>' +
     '<div class="body">' +
     '<div class="card"><h2>What is it?</h2><div>' + esc(INTRO_STORY) + '</div></div>' +
     '<div class="card"><h2>How it plays</h2>' + INTRO_STEPS.map(function (d) { return '<div class="step"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
     '<div class="card"><h2>Still to decide (' + OPEN.length + ')</h2><div class="small" style="margin-bottom:6px">This is a game we are designing together, so some rules are guesses. Each question below has a current answer in the game. Play a few rounds, talk it over, then write your answers in <b>garden/RULES.md</b> (Luke and Amy lines under each question). Tap <b>Open questions</b> for the details of each one. Many of the numbers are settings you pick when you create a garden, so you can simply try both.</div><ol class="small">' +
     OPEN.map(function (d) { return '<li>' + esc(d[0]) + '</li>'; }).join('') + '</ol></div>' +
     '<div class="btns"><button id="iQ">Open questions</button><button class="primary" id="iGo2">Play</button></div>' +
-    '<div class="ver">Garden ' + VERSIONS[0][0] + '</div></div>';
+    '<div class="ver">Gardens ' + VERSIONS[0][0] + '</div></div>';
   I.classList.remove('hidden'); I.scrollTop = 0;
   const go = function () { I.classList.add('hidden'); };
   $('iGo1').onclick = go; $('iGo2').onclick = go;
@@ -698,7 +700,7 @@ function questionsSheet() {
 $('sheet').style.zIndex = 40;
 
 function menuSheet() {
-  openSheet('<h3>Garden</h3>' +
+  openSheet('<h3>Gardens</h3>' +
     '<div class="card"><h2>Rules</h2><div class="small" style="margin-bottom:6px">Decided so far:</div>' +
     DECIDED.map(function (d) { return '<div class="q"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
     '<div class="card"><h2>Still open</h2><div class="small" style="margin-bottom:6px">Play a few games, then decide together. Settings can be changed when you start a new garden. The rest are rule changes (see RULES.md in the repo).</div>' +

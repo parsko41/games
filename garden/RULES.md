@@ -1,6 +1,6 @@
-# Garden: rules and open questions
+# Gardens: rules and open questions
 
-Working title. A 2-player, take-it-slow game for Luke and Amy. Shape a plot together, then grow it overnight and try to take over the other person's corner.
+A 2-player, take-it-slow game for Luke and Amy. Shape a plot together, then grow it overnight and try to take over the other person's corner.
 
 The same list is in the app under ☰ → Rules. **This file is the one to edit** when you decide something: change the line here, then ask Claude to make the game match (or edit `garden/index.html` yourself).
 
@@ -16,6 +16,7 @@ The same list is in the app under ☰ → Rules. **This file is the one to edit*
 - **Busy days.** Unused actions and water bank up to 2 days' worth. Growth moves one step per night. Plants that don't get water wilt, they never die. You also get a "while you were away" recap.
 - **Vacation shield.** Spend one before a busy day: your plants can't be hurt that night, but they (and your weeds) don't grow either.
 - **First move.** Who shapes first is chosen at random.
+- **Name.** The game is called Gardens.
 
 ## Still open
 
@@ -86,8 +87,8 @@ Some are settings you pick when you create a game (so you can just try both). Th
    Luke: 
    Amy: 
 
-14. **What is it called, and how should it look?**  
-   Now: Working title "Garden". Emoji plants for now.  
+14. **How should it look?**  
+   Now: Emoji plants for now. Colors, sounds and animations are all open.  
    Luke: 
    Amy: 
 
