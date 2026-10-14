@@ -1,6 +1,6 @@
 // Games API 1.3: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
-// Saves stay where they've always been: Games/<Game>/Save data on Luke's Drive.
+// Saves stay where they've always been: Games/<Game>/Save data on Player 1's Drive.
 //
 // Setup (once): paste this into a new Apps Script project in the Games folder, run setup(),
 // approve the permissions, then Deploy → New deployment → Web app,
