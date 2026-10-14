@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garden</title>
+<style>
+  :root{
+    --bg:#10162b; --panel:#1a2342; --panel2:#222d55; --ink:#eef1ff; --dim:#9aa4c9;
+    --gold:#ffcf4a; --ok:#35c46a; --red:#e5484d; --soil:#6a4a35; --soil2:#7b5740; --void:#0b1020;
+    --p0:#2fc49a; --p1:#ff7a9c; --water:#4aa8ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.primary{background:var(--gold);color:#1b1400;font-weight:700}
+  input,select{font:inherit;color:var(--ink);background:#0c1124;border:1px solid #34407a;border-radius:10px;padding:11px 12px;width:100%}
+  #app{max-width:520px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
+  header{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:34px}
+  header h1{font-size:19px;margin:0;letter-spacing:.3px;color:var(--gold);white-space:nowrap}
+  header h1 small{font-size:12px;color:var(--dim);font-weight:400;margin-left:3px}
+  #phase{flex:1;min-width:0;text-align:right;color:var(--dim);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent}
+
+  #players{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 6px}
+  .p{background:var(--panel);border-radius:10px;padding:4px 8px;border:2px solid transparent;border-left:5px solid var(--pc);min-width:0;line-height:1.25}
+  .p.on{border-color:var(--gold);border-left-color:var(--pc);background:#2a2a46}
+  .p .hd{display:flex;align-items:baseline;gap:4px}
+  .p .nm{flex:1;min-width:0;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p.me .nm::after{content:" (you)";color:var(--dim);font-weight:400;font-size:12px}
+  .p .sc{font-size:17px;font-weight:800;color:var(--gold)}
+  .p .st{font-size:14px;color:var(--ink);white-space:nowrap}
+  .p .st i{font-style:normal;color:var(--dim)}
+
+  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:15px;line-height:1.3;min-height:34px}
+  #away{background:#233a2f;border:1px solid #2f6b4c;border-radius:12px;padding:8px 10px;margin-bottom:6px;font-size:14px}
+  #away b{color:var(--gold)}
+  #away div.l{margin:2px 0}
+  #away button{margin-top:6px;padding:8px 12px;font-size:14px}
+
+  #board{display:grid;gap:3px;padding:6px;background:#0b1020;border-radius:12px;border:2px solid #2a3566;width:100%;max-width:440px;margin:0 auto 6px}
+  .c{aspect-ratio:1;border-radius:6px;position:relative;display:flex;align-items:center;justify-content:center;font-size:min(7.2vw,30px);line-height:1;user-select:none;cursor:pointer;overflow:hidden}
+  .c .xy{position:absolute;left:2px;top:1px;font-size:8px;opacity:.35;font-weight:700}
+  .c.v{background:transparent;cursor:default}
+  .c.v.ok{background:#1c2748;outline:2px dashed #46549a;outline-offset:-2px;cursor:pointer}
+  .c.v .xy{display:none}
+  .c.s{background:var(--soil)}
+  .c.s:nth-child(2n){background:var(--soil2)}
+  .c.pl0{box-shadow:inset 0 0 0 3px var(--p0);background:#16493c}
+  .c.pl1{box-shadow:inset 0 0 0 3px var(--p1);background:#5a2638}
+  .c.wd0{box-shadow:inset 0 0 0 3px var(--p0);background:#3a3a1c}
+  .c.wd1{box-shadow:inset 0 0 0 3px var(--p1);background:#3a3a1c}
+  .c.wd .e{filter:saturate(.7) hue-rotate(-30deg)}
+  .c.wd.z1 .e{font-size:.55em}.c.wd.z2 .e{font-size:.8em}
+  .c .dr{position:absolute;right:2px;top:1px;font-size:11px}
+  .c .zz{position:absolute;right:3px;bottom:1px;font-size:10px;font-weight:800;color:#ffe9a8}
+  .c.pick{outline:3px solid var(--gold);outline-offset:-3px}
+  .c.new{animation:pop .5s}
+  @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+  #tools{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:4px}
+  #tools button{padding:6px 0 5px;border-radius:10px;font-size:22px;line-height:1.15;background:var(--panel)}
+  #tools button small{display:block;font-size:11px;color:var(--dim);margin-top:1px}
+  #tools button.on{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--gold)}
+  #tools button.act{background:#2e2a55}
+  #hint{text-align:center;color:var(--dim);font-size:14px;min-height:20px}
+
+  .card{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:20px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .row label{flex:0 0 120px;color:var(--dim);font-size:15px}
+  .seat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3566}
+  .small{font-size:14px;color:var(--dim)}
+  .big{font-size:22px;font-weight:800;color:var(--gold)}
+  .center{text-align:center}
+  details{margin:6px 0}
+  details summary{cursor:pointer;font-weight:600;padding:3px 0}
+  .q{margin:8px 0;padding:8px 10px;background:#141b36;border-radius:10px}
+  .q b{display:block;margin-bottom:2px}
+
+  #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:88vh;overflow:auto}
+  #sheet h3{margin:4px 0 10px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;z-index:20;display:none;max-width:90vw;font-size:16px}
+  .ver{font-size:11px;color:var(--dim);text-align:center;margin-top:16px}
+  #intro{position:fixed;inset:0;background:var(--bg);z-index:30;overflow:auto;-webkit-overflow-scrolling:touch}
+  #intro .top{position:sticky;top:0;background:var(--bg);padding:10px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a3566;z-index:2}
+  #intro .top h2{margin:0;flex:1;font-size:20px;color:var(--gold)}
+  #intro .body{max-width:520px;margin:0 auto;padding:12px 12px calc(env(safe-area-inset-bottom) + 36px)}
+  #intro .step{margin:8px 0}
+  #intro .step b{display:block}
+  #intro ol{margin:6px 0 0;padding-left:20px}
+  #intro ol li{margin:3px 0}
+  #intro .btns{display:flex;gap:8px;margin-top:16px}
+  #intro .btns button{flex:1}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Garden<small id="ver"></small></h1>
+    <div id="phase"></div>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="lobby" class="hidden"></div>
+  <div id="game" class="hidden">
+    <div id="away" class="hidden"></div>
+    <div id="players"></div>
+    <div id="msg"></div>
+    <div id="board"></div>
+    <div id="tools"></div>
+    <div id="hint"></div>
+  </div>
+</div>
+<div id="intro" class="hidden"></div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="../shim.js" data-game="garden"></script>
+<script>
+// ---------- versions (bump on every change) ----------
+const VERSIONS = [
+  ['0.2', '2026-10-13', 'Opening screen: explains the game and lists the open questions, with Continue at the top and Play / Open questions at the bottom. Shown every time Garden opens (turn it off with SHOW_INTRO). Also under ☰ → Read the intro again.'],
+  ['0.1', '2026-10-13', 'First playable draft. Shape the plot, then grow it: plants, weeds, scarce water, Wait a Week cards, banked actions, vacation shields. Unsettled rules are listed under ☰ → Rules, and the numbers are settings you pick when you create a game.']
+];
+
+// ---------- rules shown in ☰ → Rules (also written out in garden/RULES.md) ----------
+const DECIDED = [
+  ['Two phases', 'First you take turns shaping the plot (adding soil tiles). Then you grow it: plants, weeds and water on that plot.'],
+  ['Land grab with plants', 'Your seedlings spread by touching your own plants. Whoever holds more garden at the end wins.'],
+  ['Real clock', 'One real night is one garden week. Growth happens overnight (3 AM Pacific), even if neither of you opens the app.'],
+  ['Water is scarce', 'Watering costs 1 water and no action. A watered plant grows one stage overnight; a dry one just waits. Water refills every night.'],
+  ['Weeds', 'Anyone can drop a weed on any empty tile. Weeds only hurt the other player: a weed touching their plant stops it growing, and a big weed (3 nights old) takes over a thirsty plant next to it and spreads. Your own weeds never hurt your plants.'],
+  ['Pull weeds', 'You can pull an enemy weed that touches one of your plants (1 action).'],
+  ['Wait a Week card', 'Play it to run a growth step right now for the whole garden. Everyone starts with 1 and earns another every 3rd night.'],
+  ['Busy days', 'Unused actions and water bank up to 2 days\' worth. Growth moves one step per night. Plants that don\'t get water wilt, they never die. You also get a "while you were away" recap.'],
+  ['Vacation shield', 'Spend one before a busy day: your plants can\'t be hurt that night, but they (and your weeds) don\'t grow either.'],
+  ['First move', 'Who shapes first is chosen at random.']
+];
+const OPEN = [
+  ['How big is the plot, and how long is a game?', 'Set when you create a game: plot 6x6 / 7x7 / 8x8, 6 / 9 / 12 soil tiles each, 5 to 14 nights. Default 7x7, 9 each, 7 nights. Playtest and pick.'],
+  ['How many actions and how much water per day?', 'Set when you create a game. Default 3 actions and 4 water a day, banking up to 2 days. Does 3 / 4 feel tight enough?'],
+  ['What counts as winning?', 'Set when you create a game: "Plant value" (seedling 1, growing 2, bloom 3) or "Plant count". Other ideas: most blooms, biggest connected garden, weeds count as territory.'],
+  ['Should Wait a Week let you choose what grows?', 'Right now it\'s a normal night for everyone. Could let the player pick which tiles get the growth.'],
+  ['Should the other player see which plants are watered?', 'Right now yes (a blue drop). Hiding it would add bluffing, but make it harder to judge threats.'],
+  ['Should weeds ever score?', 'Right now no: they only hurt the other player. Could give 1 point per weed, or make them cost more than a seedling.'],
+  ['Should weeds be limited?', 'Right now a weed is 1 action, on any empty tile. Could cap weeds per player, or only allow them near the other player\'s plants.'],
+  ['Should pulling a weed be harder?', 'Right now 1 action, only for weeds touching your plants. A big weed could cost 2.'],
+  ['How does the garden handle long absences?', 'Right now after 3 unattended nights the garden naps (the missed nights are skipped and don\'t count toward game length).'],
+  ['When does the garden day roll over?', 'Right now 3 AM Pacific for both of you.'],
+  ['Green dot on the tab', 'Right now: your turn while shaping, and "a new garden day is waiting" while growing (it clears when either of you makes a move).'],
+  ['More than one garden at a time?', 'Right now one garden at a time. Wheelhouse has tabs for several.'],
+  ['Wild cards?', 'Weather, pests, bees, seasons? Nothing in yet.'],
+  ['What is it called, and how should it look?', 'Working title "Garden". Emoji plants for now.']
+];
+
+// ---------- opening screen ----------
+const SHOW_INTRO = true;     // set to false once the rules are settled and the intro isn't needed any more
+const INTRO_STORY = 'Garden is a two-player game for Luke and Amy. You start by shaping a plot of soil together, taking turns adding tiles. Then you grow it over several days: plant seedlings, water them, and drop weeds on each other. Whoever ends with more garden wins.';
+const INTRO_STEPS = [
+  ['1. Shape the plot', 'Take turns adding soil tiles. Each new tile has to touch the soil already there. A long thin garden has more edges to attack; a compact one is easier to defend.'],
+  ['2. Grow it, a little each day', 'Every day you get a few actions and some water. Plant (next to your own plants), Water (so it grows overnight), drop a Weed (hurts only the other player), or Pull one of their weeds that touches your plants.'],
+  ['3. Overnight', 'While you sleep the garden grows one step: watered plants grow, weeds choke the other player\'s plants and spread. Play a Wait a Week card to fast-forward one step right now.'],
+  ['4. Busy days are okay', 'Unused actions and water bank up. Plants wilt but never die. A vacation shield protects you for a night. When you open the app you get a recap of what happened.'],
+  ['5. The end', 'After the last night, plants are scored (or counted, your choice when you create the garden) and the higher score wins.']
+];
+
+// ===== ENGINE START (pure functions: no screen, no network; tested in Node) =====
+const DAY_SHIFT_HOURS = 3;               // the garden day rolls over at 3:00 AM Pacific
+const DAY_ZONE = 'America/Los_Angeles';
+const CATCH_UP = 3;                      // after this many unattended nights the garden naps
+const STAGE_POINTS = [0, 1, 2, 3];
+const WAIT_EVERY = 3, WAIT_MAX = 3;      // a Wait card every 3rd night, hold at most 3
+
+const DAY_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: DAY_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+function dayIndex(ms) {
+  const p = DAY_FMT.format(new Date(ms - DAY_SHIFT_HOURS * 3600000)).split('-').map(Number);
+  return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000);
+}
+function msToNextDay(now) {
+  const d0 = dayIndex(now);
+  for (let k = 1; k <= 60 * 26; k++) if (dayIndex(now + k * 60000) !== d0) return k * 60000;
+  return 0;
+}
+
+function defaults() { return { size: 7, shape: 9, length: 7, apd: 3, wpd: 4, bank: 2, shields: 1, score: 'value' }; }
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function nbrs(S, i) {
+  const n = S.settings.size, r = Math.floor(i / n), c = i % n, out = [];
+  if (r > 0) out.push(i - n);
+  if (c > 0) out.push(i - 1);
+  if (c < n - 1) out.push(i + 1);
+  if (r < n - 1) out.push(i + n);
+  return out;
+}
+function coord(S, i) { const n = S.settings.size; return String.fromCharCode(65 + (i % n)) + (Math.floor(i / n) + 1); }
+function isPlant(c, o) { return !!c && c !== 1 && c.k === 'p' && (o === undefined || c.o === o); }
+function isWeed(c, o) { return !!c && c !== 1 && c.k === 'w' && (o === undefined || c.o === o); }
+function note(S, who, text) {
+  S.logN = (S.logN || 0) + 1;
+  S.log.push({ n: S.logN, w: who || '', t: text });
+  if (S.log.length > 60) S.log.splice(0, S.log.length - 60);
+}
+function newPlayer(dev, name) { return { dev: dev, name: name, ap: 0, water: 0, waits: 0, shields: 0, shieldOn: false }; }
+function makeGame(dev, name, settings, now) {
+  return {
+    app: 'garden', gid: 'g' + now.toString(36) + Math.random().toString(36).slice(2, 6), moveNo: 0,
+    status: 'lobby', settings: settings, players: [newPlayer(dev, name)],
+    cells: new Array(settings.size * settings.size).fill(0),
+    turn: 0, shapeLeft: [settings.shape, settings.shape],
+    day: 0, nights: 0, log: [], logN: 0, winner: null
+  };
+}
+function playerIdx(S, dev) { for (let i = 0; i < S.players.length; i++) if (S.players[i].dev === dev) return i; return -1; }
+function caps(S) { return { ap: S.settings.apd * S.settings.bank, water: S.settings.wpd * S.settings.bank }; }
+
+function startShape(S) {
+  S.status = 'shape';
+  S.turn = Math.floor(Math.random() * 2);                 // who shapes first is random
+  S.shapeLeft = [S.settings.shape, S.settings.shape];
+  note(S, '', S.players[S.turn].name + ' shapes first. Take turns adding soil.');
+}
+function startGrow(S, now) {
+  S.status = 'grow'; S.day = dayIndex(now); S.nights = 0;
+  S.players.forEach(function (p) { p.ap = S.settings.apd; p.water = S.settings.wpd; p.waits = 1; p.shields = S.settings.shields; p.shieldOn = false; });
+  note(S, '', 'The plot is shaped. Start growing!');
+  S.growN = S.logN;                       // the "while you were away" recap starts after this
+}
+function shapePlace(S, p, i, now) {
+  if (S.status !== 'shape') return 'The plot is already shaped.';
+  if (S.turn !== p) return 'Not your turn.';
+  if (S.cells[i] !== 0) return 'That tile is already soil.';
+  const any = S.cells.some(function (c) { return c !== 0; });
+  if (any && !nbrs(S, i).some(function (j) { return S.cells[j] !== 0; })) return 'New soil has to touch existing soil.';
+  S.cells[i] = 1; S.shapeLeft[p]--;
+  note(S, S.players[p].dev, S.players[p].name + ' added soil at ' + coord(S, i) + '.');
+  if (S.shapeLeft[0] + S.shapeLeft[1] <= 0) startGrow(S, now);
+  else S.turn = S.shapeLeft[1 - p] > 0 ? 1 - p : p;
+  return '';
+}
+
+function scores(S) {
+  const out = [0, 0];
+  S.cells.forEach(function (c) {
+    if (!isPlant(c)) return;
+    out[c.o] += S.settings.score === 'plants' ? 1 : STAGE_POINTS[c.s];
+  });
+  return out;
+}
+function endGame(S) {
+  S.status = 'over';
+  const s = scores(S);
+  S.winner = s[0] > s[1] ? 0 : s[1] > s[0] ? 1 : -1;
+  note(S, '', S.winner < 0 ? 'The garden closes in a tie, ' + s[0] + ' to ' + s[1] + '.' :
+    S.players[S.winner].name + ' wins the garden, ' + Math.max(s[0], s[1]) + ' to ' + Math.min(s[0], s[1]) + '.');
+}
+
+// One growth step. nightly=true is the real overnight tick (refills allowances and counts toward the
+// game length); nightly=false is a Wait card (growth only).
+function tick(S, nightly, who) {
+  const old = S.cells, cells = old.slice(), size = old.length;
+  const shield = S.players.map(function (p) { return !!p.shieldOn; });
+  let grew = 0, choked = 0, spread = 0;
+  const overrun = [];
+  for (let i = 0; i < size; i++) {                                    // plants
+    const c = old[i];
+    if (!isPlant(c)) continue;
+    const o = c.o;
+    if (shield[o]) continue;                                          // vacation: sleeps, untouched
+    const foes = nbrs(S, i).map(function (j) { return old[j]; }).filter(function (d) { return isWeed(d) && d.o !== o; });
+    const big = foes.filter(function (d) { return d.s >= 3; })[0];
+    if (big && !c.w) { cells[i] = { k: 'w', o: big.o, s: 1 }; overrun.push(i); continue; }   // thirsty + big weed = overrun
+    if (foes.length) { if (c.w) cells[i] = { k: 'p', o: o, s: c.s, w: 0 }; choked++; continue; }  // choked: no growth
+    if (c.w) { cells[i] = { k: 'p', o: o, s: Math.min(3, c.s + 1), w: 0 }; if (c.s < 3) grew++; }
+  }
+  for (let i = 0; i < size; i++) {                                    // weeds
+    const c = old[i];
+    if (!isWeed(c)) continue;
+    if (shield[c.o]) continue;
+    if (c.s < 3) { cells[i] = { k: 'w', o: c.o, s: c.s + 1 }; continue; }
+    let best = -1, bestN = -1;
+    nbrs(S, i).forEach(function (j) {
+      if (old[j] !== 1 || cells[j] !== 1) return;
+      const n = nbrs(S, j).filter(function (k) { return isPlant(old[k]) && old[k].o !== c.o; }).length;
+      if (n > bestN) { bestN = n; best = j; }
+    });
+    if (best >= 0) { cells[best] = { k: 'w', o: c.o, s: 1 }; spread++; }
+  }
+  S.cells = cells;
+  const bits = [];
+  if (grew) bits.push(grew + ' grew');
+  if (choked) bits.push(choked + ' choked');
+  if (spread) bits.push(spread + ' weed' + (spread > 1 ? 's' : '') + ' spread');
+  overrun.forEach(function (i) { bits.push(S.players[cells[i].o === 0 ? 1 : 0].name + '\'s plant at ' + coord(S, i) + ' was overrun'); });
+  S.players.forEach(function (p) { p.shieldOn = false; });
+  if (nightly) {
+    S.nights++;
+    const cp = caps(S);
+    S.players.forEach(function (p) {
+      p.ap = Math.min(cp.ap, p.ap + S.settings.apd);
+      p.water = Math.min(cp.water, p.water + S.settings.wpd);
+      if (S.nights % WAIT_EVERY === 0) p.waits = Math.min(WAIT_MAX, p.waits + 1);
+    });
+    note(S, '', 'Night ' + S.nights + (bits.length ? ': ' + bits.join(', ') + '.' : ': a quiet night.'));
+    if (S.nights >= S.settings.length) endGame(S);
+  } else {
+    note(S, who || '', 'A week passes' + (bits.length ? ': ' + bits.join(', ') + '.' : ', nothing changes.'));
+  }
+}
+
+// What the garden looks like right now: applies any nights that have passed since the last save.
+// Deterministic, so both phones agree. Returns the same object if nothing is due.
+function settle(S, now) {
+  if (!S || S.status !== 'grow') return S;
+  const today = dayIndex(now);
+  if (today <= S.day) return S;
+  const ns = clone(S);
+  const due = today - S.day, n = Math.min(due, CATCH_UP);
+  for (let k = 0; k < n && ns.status === 'grow'; k++) tick(ns, true);
+  if (due > n && ns.status === 'grow') note(ns, '', 'The garden napped through ' + (due - n) + ' unattended night' + (due - n > 1 ? 's' : '') + '.');
+  ns.day = today;
+  return ns;
+}
+
+// One player action in the growing phase. Changes S (a copy) and returns '' or the reason it can't be done.
+function doAction(S, p, type, i) {
+  if (S.status !== 'grow') return 'The garden isn\'t growing right now.';
+  const me = S.players[p], cells = S.cells, c = i == null ? null : cells[i];
+  const nm = me.name;
+  if (type === 'plant') {
+    if (c !== 1) return 'Pick an empty soil tile.';
+    if (me.ap < 1) return 'No actions left.';
+    const has = cells.some(function (d) { return isPlant(d, p); });
+    if (has && !nbrs(S, i).some(function (j) { return isPlant(cells[j], p); })) return 'Seedlings have to touch one of your plants.';
+    me.ap--; cells[i] = { k: 'p', o: p, s: 1, w: 0 };
+    note(S, me.dev, nm + ' planted at ' + coord(S, i) + '.');
+  } else if (type === 'weed') {
+    if (c !== 1) return 'Pick an empty soil tile.';
+    if (me.ap < 1) return 'No actions left.';
+    me.ap--; cells[i] = { k: 'w', o: p, s: 1 };
+    note(S, me.dev, nm + ' dropped a weed at ' + coord(S, i) + '.');
+  } else if (type === 'water') {
+    if (!isPlant(c, p)) return 'Tap one of your plants to water it.';
+    if (c.w) return 'Already watered tonight.';
+    if (me.water < 1) return 'No water left.';
+    me.water--; cells[i] = { k: 'p', o: p, s: c.s, w: 1 };
+  } else if (type === 'pull') {
+    if (!isWeed(c) || c.o === p) return 'Tap one of their weeds.';
+    if (!nbrs(S, i).some(function (j) { return isPlant(cells[j], p); })) return 'You can only pull weeds that touch your plants.';
+    if (me.ap < 1) return 'No actions left.';
+    me.ap--; cells[i] = 1;
+    note(S, me.dev, nm + ' pulled a weed at ' + coord(S, i) + '.');
+  } else if (type === 'wait') {
+    if (me.waits < 1) return 'No Wait cards left.';
+    if (me.ap < 1) return 'No actions left.';
+    me.ap--; me.waits--;
+    note(S, me.dev, nm + ' played Wait a Week.');
+    tick(S, false, me.dev);
+  } else if (type === 'shield') {
+    if (me.shieldOn) return 'Your vacation shield is already up.';
+    if (me.shields < 1) return 'No vacation shields left.';
+    me.shields--; me.shieldOn = true;
+    note(S, me.dev, nm + ' is away for a bit: their garden sleeps through the next growth.');
+  } else return 'Unknown action.';
+  return '';
+}
+// ===== ENGINE END =====
+
+// ---------- device / local state ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let DEV = lsGet('garden-device');
+if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('garden-device', DEV); }
+
+let S = null;            // the game as saved on the server
+let V = null;            // what it looks like right now (S plus any nights that have passed)
+let busy = false;        // waiting on a save
+let loaded = false;
+let tool = 'plant';
+let awayCut = null;      // log number up to which this phone has "seen" the garden
+let lastKey = '';
+
+const $ = function (id) { return document.getElementById(id); };
+const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const av = function (p) { return window.GamesApp ? esc(GamesApp.avatar(p.dev, p.name)) : ''; };
+const me = function () { return V ? playerIdx(V, DEV) : -1; };
+
+// ---------- server (slot 0: one garden at a time) ----------
+const store = {
+  get: function (cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r.state); }).withFailureHandler(function () { cb(undefined); }).getState(0);
+  },
+  save: function (ns, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r.ok, r.state); })
+      .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
+      .saveState(JSON.stringify(ns), 0);
+  },
+  close: function (gid, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r.state); })
+      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); busy = false; render(); }).closeGame(0, gid);
+  }
+};
+
+function next() {            // a copy of what you see, ready to change and save
+  const ns = clone(V);
+  ns.moveNo = S.moveNo + 1;
+  return ns;
+}
+function commit(ns) {
+  if (busy) return;
+  busy = true; render();
+  store.save(ns, function (ok, saved) {
+    busy = false;
+    if (!ok && saved !== undefined) toast('The other player moved first, so the garden refreshed. Try again.');
+    if (saved !== undefined) apply(saved); else render();
+  });
+}
+function poll() {
+  if (busy || document.hidden) return;
+  store.get(function (st) { if (st !== undefined && !busy) apply(st); });
+}
+function apply(st) {
+  loaded = true;
+  const changed = (!S !== !st) || (S && st && (st.gid !== S.gid || st.moveNo !== S.moveNo));
+  S = st;
+  if (changed || !V) refreshView(true); else refreshView(false);
+}
+function refreshView(force) {
+  const nv = S ? settle(S, Date.now()) : null;
+  const same = !force && V && nv && JSON.stringify(V) === JSON.stringify(nv);
+  V = nv;
+  if (!same) { buzz(); render(); }
+}
+
+// ---------- actions ----------
+function createGame(name, settings) {
+  const ns = makeGame(DEV, name, settings, Date.now());
+  note(ns, '', name + ' planted a new garden.');
+  busy = true; render();
+  store.save(ns, function (ok, saved) { busy = false; if (saved !== undefined) apply(saved); else render(); });
+}
+function joinGame(name) {
+  if (V.players.length >= 2) return;
+  const ns = next();
+  ns.players.push(newPlayer(DEV, name));
+  note(ns, DEV, name + ' joined.');
+  commit(ns);
+}
+function startGame() {
+  const ns = next();
+  startShape(ns);
+  commit(ns);
+}
+function closeGame() {
+  if (!S || busy) return;
+  busy = true; render();
+  store.close(S.gid, function (st) { busy = false; awayCut = null; apply(st); toast('Garden closed.'); });
+}
+function tap(i) {
+  if (!V || busy) return;
+  const p = me(); if (p < 0) return;
+  const ns = next();
+  let err;
+  if (V.status === 'shape') err = shapePlace(ns, p, i, Date.now());
+  else if (V.status === 'grow') err = doAction(ns, p, tool, i);
+  else return;
+  if (err) return toast(err);
+  commit(ns);
+}
+function playAction(type) {
+  if (!V || busy) return;
+  const p = me(); if (p < 0) return;
+  const ns = next();
+  const err = doAction(ns, p, type, null);
+  if (err) return toast(err);
+  if (type === 'wait') return confirmSheet('Play Wait a Week?', 'The whole garden grows one step right now, for both of you. Costs 1 action and 1 Wait card.', 'Play it', function () { commit(ns); });
+  if (type === 'shield') return confirmSheet('Raise your vacation shield?', 'Tonight your plants can\'t be hurt, but they (and your weeds) won\'t grow either. One use.', 'Raise shield', function () { commit(ns); });
+  commit(ns);
+}
+function buzz() {
+  const key = V && (V.gid + ':' + V.status + ':' + V.turn);
+  const mine = V && V.status === 'shape' && V.turn === me();
+  if (mine && key !== lastKey && lastKey && navigator.vibrate) navigator.vibrate(120);
+  lastKey = key || '';
+}
+
+// ---------- drawing ----------
+const STAGE_EMOJI = ['', '🌱', '🌿', '🌻'];
+function pcol(i) { return i === 0 ? 'var(--p0)' : 'var(--p1)'; }
+function timeLeft() {
+  const m = Math.round(msToNextDay(Date.now()) / 60000);
+  return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + 'm';
+}
+
+function render() {
+  $('ver').textContent = VERSIONS[0][0];
+  if (!loaded) { $('phase').textContent = 'Loading…'; return; }
+  if (!V || V.status === 'lobby') {
+    $('lobby').classList.remove('hidden'); $('game').classList.add('hidden');
+    $('phase').textContent = V ? 'Lobby' : '';
+    renderLobby(); return;
+  }
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  const p = me();
+  $('phase').textContent = V.status === 'shape' ? 'Shaping the plot' : V.status === 'grow' ? 'Night ' + (V.nights + 1) + ' of ' + V.settings.length + ' · grows in ' + timeLeft() : 'Game over';
+  renderAway(); renderPlayers(); renderBoard(); renderTools(); renderMsg();
+}
+
+function renderPlayers() {
+  const sc = scores(V), cp = caps(V);
+  $('players').innerHTML = V.players.map(function (pl, i) {
+    const on = V.status === 'shape' && V.turn === i;
+    let st = '';
+    if (V.status === 'shape') st = '<i>soil left</i> ' + V.shapeLeft[i];
+    else st = '⚡' + pl.ap + '<i>/' + cp.ap + '</i> 💧' + pl.water + '<i>/' + cp.water + '</i> ⏩' + pl.waits + (pl.shieldOn ? ' 🛡️on' : ' 🛡️' + pl.shields);
+    return '<div class="p' + (on ? ' on' : '') + (i === me() ? ' me' : '') + '" style="--pc:' + pcol(i) + '"><div class="hd"><span class="nm">' + av(pl) + esc(pl.name) + '</span>' +
+      (V.status !== 'shape' ? '<span class="sc">★' + sc[i] + '</span>' : '') + '</div><div class="st">' + st + '</div></div>';
+  }).join('');
+}
+
+function renderBoard() {
+  const n = V.settings.size, b = $('board'), p = me();
+  b.style.gridTemplateColumns = 'repeat(' + n + ',1fr)';
+  let touch = null;
+  if (V.status === 'shape') {
+    const any = V.cells.some(function (c) { return c !== 0; });
+    touch = function (i) { return V.cells[i] === 0 && (!any || nbrs(V, i).some(function (j) { return V.cells[j] !== 0; })); };
+  }
+  const myTurn = V.status === 'shape' && V.turn === p;
+  b.innerHTML = V.cells.map(function (c, i) {
+    const xy = '<span class="xy">' + coord(V, i) + '</span>';
+    if (c === 0) return '<div class="c v' + (myTurn && touch(i) ? ' ok' : '') + '" data-i="' + i + '">' + xy + '</div>';
+    if (c === 1) return '<div class="c s" data-i="' + i + '">' + xy + '</div>';
+    if (c.k === 'p') return '<div class="c s pl' + c.o + '" data-i="' + i + '">' + xy + '<span class="e">' + STAGE_EMOJI[c.s] + '</span>' + (c.w ? '<span class="dr">💧</span>' : '') + '</div>';
+    return '<div class="c s wd wd' + c.o + ' z' + c.s + '" data-i="' + i + '">' + xy + '<span class="e">🌾</span><span class="zz">' + c.s + '</span></div>';
+  }).join('');
+}
+$('board').onclick = function (e) { const c = e.target.closest('.c'); if (c) tap(+c.dataset.i); };
+
+const TOOLS = [['plant', '🌱', 'Plant'], ['water', '💧', 'Water'], ['weed', '🌾', 'Weed'], ['pull', '✂️', 'Pull']];
+function renderTools() {
+  const t = $('tools');
+  if (V.status !== 'grow' || me() < 0) { t.innerHTML = ''; t.classList.add('hidden'); return; }
+  t.classList.remove('hidden');
+  const pl = V.players[me()];
+  t.innerHTML = TOOLS.map(function (x) {
+    return '<button data-tool="' + x[0] + '" class="' + (tool === x[0] ? 'on' : '') + '">' + x[1] + '<small>' + x[2] + '</small></button>';
+  }).join('') +
+    '<button class="act" data-act="wait"' + (pl.waits < 1 || pl.ap < 1 ? ' disabled' : '') + '>⏩<small>Wait</small></button>' +
+    '<button class="act" data-act="shield"' + (pl.shields < 1 || pl.shieldOn ? ' disabled' : '') + '>🛡️<small>Shield</small></button>';
+}
+$('tools').onclick = function (e) {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.tool) { tool = b.dataset.tool; renderTools(); renderMsg(); }
+  else if (b.dataset.act) playAction(b.dataset.act);
+};
+
+function renderMsg() {
+  const p = me(), m = $('msg'), h = $('hint');
+  if (busy) { m.textContent = 'Saving…'; h.textContent = ''; return; }
+  if (p < 0) { m.textContent = 'You are watching this garden.'; h.textContent = ''; return; }
+  if (V.status === 'shape') {
+    m.innerHTML = V.turn === p ? '<b>Your turn.</b> Add a soil tile that touches the garden. ' + V.shapeLeft[p] + ' left.' : 'Waiting for <b>' + esc(V.players[V.turn].name) + '</b> to add soil…';
+    h.textContent = V.turn === p ? 'Tap a dashed spot.' : '';
+    return;
+  }
+  if (V.status === 'over') {
+    const sc = scores(V);
+    m.innerHTML = V.winner < 0 ? '<span class="big">A tie, ' + sc[0] + ' to ' + sc[1] + '</span>' : '<span class="big">' + av(V.players[V.winner]) + esc(V.players[V.winner].name) + ' wins!</span> ' + Math.max(sc[0], sc[1]) + ' to ' + Math.min(sc[0], sc[1]);
+    h.innerHTML = '<button class="primary" id="again" style="margin-top:6px">New garden</button>';
+    $('again').onclick = setupSheet;
+    return;
+  }
+  const pl = V.players[p];
+  const last = V.log.length ? V.log[V.log.length - 1].t : '';
+  m.textContent = last;
+  h.textContent = ({
+    plant: pl.ap < 1 ? 'No actions left. They refill overnight.' : 'Plant: empty tile next to yours (1 action)',
+    water: pl.water < 1 ? 'No water left. It refills overnight.' : 'Water: tap your plant (1 water)',
+    weed: pl.ap < 1 ? 'No actions left.' : 'Weed: any empty tile (1 action), hurts only them',
+    pull: 'Pull: their weed touching your plant (1 action)'
+  })[tool];
+}
+
+// ---------- while you were away ----------
+function renderAway() {
+  const a = $('away');
+  const key = 'garden-seen-' + V.gid;
+  if (awayCut === null) awayCut = parseInt(lsGet(key) || '0', 10) || 0;
+  const mine = me();
+  const floor = Math.max(awayCut, V.growN || 0);
+  const fresh = V.log.filter(function (l) { return l.n > floor && l.w !== DEV && V.status !== 'shape'; });
+  if (!fresh.length || mine < 0) { a.classList.add('hidden'); return; }
+  const shown = fresh.slice(-5);
+  a.innerHTML = '<b>While you were away</b>' + (fresh.length > shown.length ? '<div class="small">…and ' + (fresh.length - shown.length) + ' earlier</div>' : '') +
+    shown.map(function (l) { return '<div class="l">' + esc(l.t) + '</div>'; }).join('') + '<button id="awayOk">Got it</button>';
+  a.classList.remove('hidden');
+  $('awayOk').onclick = function () { awayCut = V.logN; lsSet(key, String(awayCut)); a.classList.add('hidden'); };
+}
+
+// ---------- lobby ----------
+const SETTING_FIELDS = [
+  ['size', 'Plot', [[6, '6 x 6'], [7, '7 x 7'], [8, '8 x 8']]],
+  ['shape', 'Soil each', [[6, '6 tiles'], [9, '9 tiles'], [12, '12 tiles']]],
+  ['length', 'Length', [[5, '5 nights'], [7, '7 nights'], [10, '10 nights'], [14, '14 nights']]],
+  ['apd', 'Actions a day', [[2, '2'], [3, '3'], [4, '4']]],
+  ['wpd', 'Water a day', [[3, '3'], [4, '4'], [5, '5']]],
+  ['bank', 'Bank up to', [[1, '1 day'], [2, '2 days'], [3, '3 days']]],
+  ['shields', 'Vacation shields', [[0, 'None'], [1, '1'], [2, '2'], [3, '3']]],
+  ['score', 'Winner', [['value', 'Plant value'], ['plants', 'Plant count']]]
+];
+function setupForm(cur) {
+  cur = cur || defaults();
+  return '<div class="row"><label>Your name</label><input id="sName" maxlength="14" value="' + esc(lsGet('garden-name') || '') + '"></div>' +
+    SETTING_FIELDS.map(function (f) {
+      return '<div class="row"><label>' + f[1] + '</label><select data-set="' + f[0] + '">' + f[2].map(function (o) {
+        return '<option value="' + o[0] + '"' + (String(cur[f[0]]) === String(o[0]) ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select></div>';
+    }).join('');
+}
+function readSettings(root) {
+  const s = defaults();
+  root.querySelectorAll('select[data-set]').forEach(function (el) { const k = el.dataset.set; s[k] = k === 'score' ? el.value : +el.value; });
+  s.shape = Math.min(s.shape, Math.floor(s.size * s.size / 2));
+  return s;
+}
+function settingsLine(s) {
+  return s.size + 'x' + s.size + ' plot · ' + s.shape + ' soil each · ' + s.length + ' nights · ' + s.apd + ' actions, ' + s.wpd + ' water a day (bank ' + s.bank + ' days) · ' + s.shields + ' shield' + (s.shields === 1 ? '' : 's') + ' · ' + (s.score === 'plants' ? 'plant count' : 'plant value');
+}
+function renderLobby() {
+  const L = $('lobby');
+  if (!V) {
+    L.innerHTML = '<div class="card"><h2>New garden</h2><div class="small" style="margin-bottom:6px">Shape a plot together, then grow it overnight and try to take over the other player\'s corner. 2 players, each on their own phone. Every number below is a setting, so you can try different ones.</div>' + setupForm() +
+      '<button class="primary" id="bCreate" style="width:100%;margin-top:8px">Create garden</button></div>';
+    $('bCreate').onclick = function () {
+      const n = $('sName').value.trim(); if (!n) return toast('Enter your name');
+      lsSet('garden-name', n); createGame(n, readSettings(L));
+    };
+    return;
+  }
+  const m = me(), host = m === 0;
+  let h = '<div class="card"><h2>Lobby</h2>' + V.players.map(function (p, i) {
+    return '<div class="seat"><span>' + av(p) + esc(p.name) + (i === 0 ? ' <span class="small">(host)</span>' : '') + (i === m ? ' <span class="small">(you)</span>' : '') + '</span></div>';
+  }).join('') + '<div class="small" style="margin-top:8px">' + esc(settingsLine(V.settings)) + '</div></div>';
+  if (m < 0 && V.players.length < 2) {
+    h += '<div class="card"><h2>Join</h2><input id="jName" maxlength="14" placeholder="Your name" value="' + esc(lsGet('garden-name') || '') + '"><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join garden</button></div>';
+  } else if (m < 0) h += '<div class="card small">This garden is full.</div>';
+  if (host) h += '<button class="primary" id="bStart" style="width:100%"' + (V.players.length >= 2 && !busy ? '' : ' disabled') + '>' + (V.players.length >= 2 ? 'Start shaping' : 'Waiting for the other player to join…') + '</button>';
+  else if (m >= 0) h += '<div class="card small center">Waiting for ' + esc(V.players[0].name) + ' to start…</div>';
+  h += '<div class="small center" style="margin-top:12px">The other player joins from their Garden tab.</div>';
+  L.innerHTML = h;
+  if ($('bJoin')) $('bJoin').onclick = function () { const n = $('jName').value.trim(); if (!n) return toast('Enter your name'); lsSet('garden-name', n); joinGame(n); };
+  if ($('bStart')) $('bStart').onclick = startGame;
+}
+
+// ---------- sheets ----------
+function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+$('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
+function confirmSheet(title, text, yes, fn) {
+  openSheet('<h3>' + esc(title) + '</h3><div class="small">' + esc(text) + '</div><div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Not now</button><button class="primary" id="cYes" style="flex:1">' + esc(yes) + '</button></div>');
+  $('cNo').onclick = closeSheet; $('cYes').onclick = function () { closeSheet(); fn(); };
+}
+function setupSheet() {
+  openSheet('<h3>New garden</h3><div class="small" style="margin-bottom:6px">This replaces the current garden for both of you.</div><div id="nForm">' + setupForm(V && V.settings) + '</div><button class="primary" id="nGo" style="width:100%;margin-top:10px">Create garden</button><button id="nNo" style="width:100%;margin-top:8px">Cancel</button>');
+  $('nNo').onclick = closeSheet;
+  $('nGo').onclick = function () {
+    const n = $('sName').value.trim(); if (!n) return toast('Enter your name');
+    lsSet('garden-name', n); const s = readSettings($('nForm')); closeSheet(); createGame(n, s);
+  };
+}
+// ---------- opening screen ----------
+function introScreen() {
+  const I = $('intro');
+  I.innerHTML = '<div class="top"><h2>🌱 Garden</h2><button class="primary" id="iGo1">Continue</button></div>' +
+    '<div class="body">' +
+    '<div class="card"><h2>What is it?</h2><div>' + esc(INTRO_STORY) + '</div></div>' +
+    '<div class="card"><h2>How it plays</h2>' + INTRO_STEPS.map(function (d) { return '<div class="step"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
+    '<div class="card"><h2>Still to decide (' + OPEN.length + ')</h2><div class="small" style="margin-bottom:6px">This is a game we are designing together, so some rules are guesses. Each question below has a current answer in the game. Play a few rounds, talk it over, then write your answers in <b>garden/RULES.md</b> (Luke and Amy lines under each question). Tap <b>Open questions</b> for the details of each one. Many of the numbers are settings you pick when you create a garden, so you can simply try both.</div><ol class="small">' +
+    OPEN.map(function (d) { return '<li>' + esc(d[0]) + '</li>'; }).join('') + '</ol></div>' +
+    '<div class="btns"><button id="iQ">Open questions</button><button class="primary" id="iGo2">Play</button></div>' +
+    '<div class="ver">Garden ' + VERSIONS[0][0] + '</div></div>';
+  I.classList.remove('hidden'); I.scrollTop = 0;
+  const go = function () { I.classList.add('hidden'); };
+  $('iGo1').onclick = go; $('iGo2').onclick = go;
+  $('iQ').onclick = questionsSheet;
+}
+function questionsSheet() {
+  openSheet('<h3>Open questions</h3><div class="small" style="margin-bottom:8px">What the game does right now, and what we could change it to. Settings can be changed when you create a garden; the rest are rule changes.</div>' +
+    OPEN.map(function (d, i) { return '<div class="q"><b>' + (i + 1) + '. ' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') +
+    '<button id="qClose" style="width:100%;margin-top:10px">Back</button>');
+  $('qClose').onclick = closeSheet;
+}
+$('sheet').style.zIndex = 40;
+
+function menuSheet() {
+  openSheet('<h3>Garden</h3>' +
+    '<div class="card"><h2>Rules</h2><div class="small" style="margin-bottom:6px">Decided so far:</div>' +
+    DECIDED.map(function (d) { return '<div class="q"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
+    '<div class="card"><h2>Still open</h2><div class="small" style="margin-bottom:6px">Play a few games, then decide together. Settings can be changed when you start a new garden. The rest are rule changes (see RULES.md in the repo).</div>' +
+    OPEN.map(function (d) { return '<div class="q"><b>' + esc(d[0]) + '</b><span class="small">' + esc(d[1]) + '</span></div>'; }).join('') + '</div>' +
+    (V ? '<div class="card"><h2>This garden</h2><div class="small">' + esc(settingsLine(V.settings)) + '</div></div>' : '') +
+    (V && V.log.length ? '<div class="card"><h2>Recent</h2>' + V.log.slice(-15).reverse().map(function (l) { return '<div class="small" style="margin-bottom:4px">' + esc(l.t) + '</div>'; }).join('') + '</div>' : '') +
+    '<button id="mIntro" style="width:100%;margin-bottom:10px">Read the intro again</button>' +
+    '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new garden</button>' +
+    (V ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this garden</button>' : '') +
+    '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
+    '<button id="mClose" style="width:100%">Close</button>');
+  $('mIntro').onclick = function () { closeSheet(); introScreen(); };
+  $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
+  if ($('mClose2')) $('mClose2').onclick = function () {
+    confirmSheet('Close this garden?', 'It ends for both of you. This can\'t be undone.', 'Close garden', closeGame);
+  };
+  $('mClose').onclick = closeSheet;
+}
+$('menuBtn').onclick = menuSheet;
+
+function toast(t) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+
+// ---------- start ----------
+render();
+if (SHOW_INTRO) introScreen();
+window.addEventListener('gamesprofiles', function () { if (loaded) render(); });
+store.get(function (st) { if (st !== undefined) apply(st); else { loaded = true; toast('Could not load the garden.'); render(); } });
+setInterval(poll, 5000);
+setInterval(function () { if (loaded && !busy && !document.hidden) refreshView(false); }, 30000);   // picks up a new night without a reload
+document.addEventListener('visibilitychange', poll);
+</script>
+</body>
+</html>
