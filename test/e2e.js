@@ -1,4 +1,4 @@
-// End-to-end test: two phones (Luke, Amy) use the app through the real shim -> fake server -> real Code.gs.
+// End-to-end test: two phones (Player 1, Player 2) use the app through the real shim -> fake server -> real Code.gs.
 // Run: node test/e2e.js
 const path = require('path');
 const { chromium } = require('/opt/npm-tools/node_modules/playwright');
@@ -22,7 +22,7 @@ async function until(fn, ms, label) {
 
   // An old Wheelhouse game already in progress (slot 1), saved by the old Apps Script with old device ids.
   folders.wh.createFile('wheelhouse-state-1.json', JSON.stringify({ app: 'wheelhouse', gid: 'gold', moveNo: 7, status: 'play', settings: { rounds: 3, source: 'builtin' },
-    players: [{ dev: 'dOLDluke', name: 'Luke', bank: 300, total: 0 }, { dev: 'dOLDamy', name: 'Amy', bank: 0, total: 0 }], round: 1, turn: 0, starter: 0,
+    players: [{ dev: 'dOLDp1', name: 'Player 1', bank: 300, total: 0 }, { dev: 'dOLDp2', name: 'Player 2', bank: 0, total: 0 }], round: 1, turn: 0, starter: 0,
     puzzle: { text: 'BREAK A LEG', cat: 'Phrase', hint: '', src: 'built-in' }, guessed: ['R'], phase: 'spin', spinVal: 0, spin: { n: 2, idx: 3, jit: 0 }, log: ['old game'], used: [], bonus: null, last: '' }));
 
   ctx.setup();   // step 1 of the real setup: finds the save folders and lists games already in progress
@@ -39,25 +39,25 @@ async function until(fn, ms, label) {
   const frame = (p, g) => p.frame({ url: new RegExp('/' + g + '/') });
 
   // ---------- login ----------
-  const A = await mkPhone('Luke');
+  const A = await mkPhone('Player 1');
   await A.waitForSelector('#bNewP');
   check(await A.isVisible('text=Who\'s playing on this phone?'), 'first open asks who is playing');
   await A.click('#bNewP');
-  await A.fill('#pName', 'Luke');
+  await A.fill('#pName', 'Player 1');
   await A.click('#emo button[data-e="🦊"]');
   await A.click('#pSave');
   await until(() => frame(A, 'tilework'), 5000, 'tilework frame');
   const me = await A.evaluate(() => JSON.parse(localStorage.getItem('games-me')));
-  check(me && me.name === 'Luke' && me.avatar === '🦊' && /^p/.test(me.dev), 'Luke saved: ' + JSON.stringify(me));
-  check(JSON.parse(ctx.getProfiles ? JSON.stringify(ctx.getProfiles()) : '{}')[me.dev].name === 'Luke', 'profile stored on the server');
+  check(me && me.name === 'Player 1' && me.avatar === '🦊' && /^p/.test(me.dev), 'Player 1 saved: ' + JSON.stringify(me));
+  check(JSON.parse(ctx.getProfiles ? JSON.stringify(ctx.getProfiles()) : '{}')[me.dev].name === 'Player 1', 'profile stored on the server');
   await A.screenshot({ path: path.join(shots, 'a-tilework-lobby.png') });
 
-  const B = await mkPhone('Amy');
+  const B = await mkPhone('Player 2');
   await B.waitForSelector('#whoList button');
-  check((await B.textContent('#whoList')).includes('Luke'), 'second phone sees Luke in the player list');
-  await B.click('#bNewP'); await B.fill('#pName', 'Amy'); await B.click('#emo button[data-e="🐼"]'); await B.click('#pSave');
+  check((await B.textContent('#whoList')).includes('Player 1'), 'second phone sees Player 1 in the player list');
+  await B.click('#bNewP'); await B.fill('#pName', 'Player 2'); await B.click('#emo button[data-e="🐼"]'); await B.click('#pSave');
   await until(() => frame(B, 'tilework'), 5000, 'B tilework frame');
-  const amy = await B.evaluate(() => JSON.parse(localStorage.getItem('games-me')));
+  const p2 = await B.evaluate(() => JSON.parse(localStorage.getItem('games-me')));
 
   // the game pages use the app's player id
   const twA = frame(A, 'tilework');
@@ -74,7 +74,7 @@ async function until(fn, ms, label) {
   await twB.click('#joinBtn');
   await until(() => twA.evaluate(() => window.__tw.state && window.__tw.state.status === 'active'), 10000, 'tilework active on A');
   let tws = await twA.evaluate(() => window.__tw.state);
-  check(tws.players[0] === me.dev && tws.players[1] === amy.dev, 'Tilework seats are the app players');
+  check(tws.players[0] === me.dev && tws.players[1] === p2.dev, 'Tilework seats are the app players');
   await until(() => twA.evaluate(() => document.querySelector('#pl1 .nm').textContent.includes('🐼')), 6000, 'avatar in Tilework');
   check((await twA.textContent('#pl0 .nm')).startsWith('🦊'), 'Tilework shows avatars: ' + (await twA.textContent('#pl0 .nm')) + ' / ' + (await twA.textContent('#pl1 .nm')));
   check((await twA.textContent('#bagc')).includes('1.0'), 'Tilework shows version 1.0');
@@ -114,14 +114,14 @@ async function until(fn, ms, label) {
   // ---------- Wheelhouse: new 2-player game ----------
   await whA.evaluate(() => switchTab(0));
   await until(() => whA.isVisible('#bCreate'), 6000, 'wheelhouse new game form');
-  check((await whA.inputValue('#sName')) === 'Luke', 'name is filled in from the app player');
+  check((await whA.inputValue('#sName')) === 'Player 1', 'name is filled in from the app player');
   await whA.selectOption('#sSrc', 'builtin'); await whA.selectOption('#sRounds', '2');
   await whA.click('#bCreate');
   await B.click('#bar .tab[data-game="wheelhouse"]');
   const whB = await until(() => frame(B, 'wheelhouse'), 5000, 'B wheelhouse frame');
   await until(() => whB.evaluate(() => S && S.status === 'lobby'), 10000, 'B sees lobby');
   await whB.click('#bJoin');
-  await until(() => whA.evaluate(() => S && S.players.length === 2), 10000, 'Amy joined');
+  await until(() => whA.evaluate(() => S && S.players.length === 2), 10000, 'Player 2 joined');
   check(await whA.evaluate(() => MAX_SEATS === 2), 'Wheelhouse max 2 players');
   await whA.click('#bStart');
   await until(() => whA.evaluate(() => S && S.status === 'play'), 10000, 'wheelhouse playing');
@@ -200,7 +200,7 @@ async function until(fn, ms, label) {
   await anB.evaluate(() => switchTab(1));
   await until(() => anB.isVisible('#bJoin'), 8000, 'B join button');
   await anB.click('#bJoin');
-  await until(() => anA.evaluate(() => S && S.players.length === 2), 10000, 'Amy joined Answers');
+  await until(() => anA.evaluate(() => S && S.players.length === 2), 10000, 'Player 2 joined Answers');
   check(await anB.evaluate(() => MAX_SEATS === 2), 'Answers max 2 players');
   await anA.click('#bStart');
   await until(() => anB.evaluate(() => S && S.status === 'pick'), 10000, 'B sees Answers board');
@@ -210,7 +210,7 @@ async function until(fn, ms, label) {
 
   // ---------- profile edit ----------
   await A.click('#me');
-  await A.fill('#pName', 'Luke P'); await A.click('#emo button[data-e="🚀"]'); await A.click('#pSave');
+  await A.fill('#pName', 'Player 1 P'); await A.click('#emo button[data-e="🚀"]'); await A.click('#pSave');
   await until(() => A.evaluate(() => document.getElementById('me').textContent === '🚀'), 5000, 'avatar changed');
   check(ctx.getProfiles()[me.dev].avatar === '🚀', 'avatar change saved on the server');
 

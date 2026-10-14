@@ -23,7 +23,7 @@ function makeBackend() {
       getParents() { return iter(d.parent ? [d.parent] : []); } };
     folders[d.id] = d; return d;
   }
-  // Luke's real Drive layout (IDs from the changelogs)
+  // Player 1's real Drive layout (IDs from the changelogs)
   const gamesRoot = mkFolder('Games');
   const tw = mkFolder('Tilework', '12wPzLtxt5awCZRKolMf--msClkw2e0b3'); tw.parent = gamesRoot;
   const twSave = mkFolder('Save data', '1dXMZ9SEyzDKnr7D-_RfWjDjWnAo9WpqB'); tw.folders.push(twSave);
