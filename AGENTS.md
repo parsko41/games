@@ -8,7 +8,7 @@ They are not programmers and usually work from a phone. Read this whole file fir
 - **Tilework**: Scrabble-style word game. `tilework/index.html`
 - **Wheelhouse**: Wheel of Fortune-style. `wheelhouse/index.html`
 - **Answers**: Jeopardy-style, with an optional computer opponent. `answers/src/` (built into `answers/index.html`)
-- **Garden** (new, still being designed): shape a plot together, then grow it overnight with plants, weeds and scarce water. `garden/index.html`. Its rules and open questions live in `garden/RULES.md`.
+- **Gardens** (new, still being designed): shape a plot together, then grow it overnight with plants, weeds and scarce water. `garden/index.html`. Its rules and open questions live in `garden/RULES.md`.
 
 Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`, branch `main`, root).
 
@@ -61,7 +61,8 @@ by `node answers/src/build.js` (it pastes the clue lists in at `/*CLUES*/` and `
   Clue format: `# Category` line, then 5 lines `clue :: answer|other accepted answer`, easiest first.
   Final clues: `Category :: clue :: answer`. No backticks in clue text.
 
-### Garden notes
+### Gardens notes
+- The game is called **Gardens**; internal ids stay singular (game key `garden`, folder `garden/`, `garden-*` storage keys, Drive folder `Games/Garden`) so saves and the server keep working.
 - **Rules first.** When a Garden rule is decided or changed, update `garden/RULES.md` and the `DECIDED` / `OPEN` lists near the top of `garden/index.html` (shown under ☰ → Rules) so they match. Many numbers are settings picked when a garden is created (see `SETTING_FIELDS`); prefer a setting over a hard-coded change when the players are still undecided.
 - **Growth runs on the real clock, with no server timer.** `settle(S, now)` applies any nights that have passed (deterministic, so both phones agree) and the result is saved with the next player action. The garden day rolls over at 3 AM Pacific (`dayIndex`, and `gardenDay_()` in `server/Code.gs`: keep them identical). After 3 unattended nights the garden naps.
 - One garden at a time (save slot 0). Players act whenever they have actions, not in strict turns, except while shaping. Every save still bumps `moveNo` by exactly 1.
@@ -93,8 +94,8 @@ Mistakes are recoverable: GitHub keeps every old version (open the file → Hist
 | `tilework/index.html` | Tilework (whole game in one file) |
 | `wheelhouse/index.html` | Wheelhouse (whole game in one file, puzzle list inside) |
 | `answers/src/` | Answers source + clue lists; `answers/index.html` is built from it |
-| `garden/index.html` | Garden (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
-| `garden/RULES.md` | Garden rules: what's decided and the open questions the players are settling together |
+| `garden/index.html` | Gardens (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
+| `garden/RULES.md` | Gardens rules: what's decided and the open questions the players are settling together |
 | `server/Code.gs` | Games API (Apps Script, runs in Luke's account) |
 | `test/` | Fake server + end-to-end test (Node + Playwright) |
 | `README.md`, `CHANGELOG.md` | Setup notes and change history |

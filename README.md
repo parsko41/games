@@ -3,7 +3,7 @@
 > **Using an AI to make changes?** Tell it to read `AGENTS.md` first:
 > https://raw.githubusercontent.com/parsko41/games/main/AGENTS.md
 
-Tilework, Wheelhouse, Answers and Garden in one app: one icon on the phone, a tab per game, one player
+Tilework, Wheelhouse, Answers and Gardens in one app: one icon on the phone, a tab per game, one player
 (name and avatar) per phone.
 
 - The pages (this repo) are hosted free on **GitHub Pages**.
@@ -64,7 +64,7 @@ tap "I'm <your name>" once and it continues where it left off.
 | `shim.js` | Lets the games call the Games API, shares the player and avatars |
 | `config.js` | The Games API link (the only setting) |
 | `manifest.webmanifest`, `sw.js`, `icon*` | What makes it installable on Android |
-| `tilework/`, `wheelhouse/`, `answers/`, `garden/` | The games (`garden/RULES.md` holds Garden's rules and open questions) |
+| `tilework/`, `wheelhouse/`, `answers/`, `garden/` | The games (`garden/RULES.md` holds the Gardens rules and open questions) |
 | `server/Code.gs` | The Games API (Apps Script) |
 | `test/` | Local fake server and end-to-end test |
 

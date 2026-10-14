@@ -1,5 +1,8 @@
 # Games app: changelog
 
+## Games 1.5 (2026-10-13): Garden is now called Gardens
+- The game is now called **Gardens** everywhere you see it: tab, page title, intro, menu, turn alerts and docs (Gardens 0.3, app 1.5). Internal ids stay singular (game key `garden`, the `garden/` folder, `garden-*` storage keys, Drive folder `Games/Garden`), so the server and saves are unaffected: no Games API redeploy is needed for the rename.
+
 ## Games 1.4 (2026-10-13): Garden, a new game
 - **Garden 0.2 (new, fourth tab).** A 2-player game to design together: shape the plot (alternate adding soil), then grow it. Plants grow overnight if watered, weeds choke and overrun the other player's thirsty plants, water is scarce, a "Wait a Week" card runs a growth step right now. Busy-day protection: actions and water bank up to 2 days, growth is one step a night, dry plants wilt but never die, vacation shields, and a "while you were away" recap. Opens with an intro screen that explains the game and lists the open questions. Numbers (plot size, game length, actions/water per day, bank, shields, scoring) are settings picked when creating a garden; everything unsettled is under ☰ → Rules and in `garden/RULES.md`.
 - App 1.4: Garden tab added (amber turn dot); tab labels slightly smaller so four fit on a 360px phone. `shim.js`: Garden gets the shared player (`garden-device` / `garden-name`). `sw.js`: turn alerts name the game "Garden".
