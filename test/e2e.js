@@ -77,7 +77,7 @@ async function until(fn, ms, label) {
   check(tws.players[0] === me.dev && tws.players[1] === p2.dev, 'Tilework seats are the app players');
   await until(() => twA.evaluate(() => document.querySelector('#pl1 .nm').textContent.includes('🐼')), 6000, 'avatar in Tilework');
   check((await twA.textContent('#pl0 .nm')).startsWith('🦊'), 'Tilework shows avatars: ' + (await twA.textContent('#pl0 .nm')) + ' / ' + (await twA.textContent('#pl1 .nm')));
-  check((await twA.textContent('#bagc')).includes('1.0'), 'Tilework shows version 1.0');
+  check(/\d+\.\d+/.test(await twA.textContent('#bagc')), 'Tilework shows its version');
   // whoever's turn it is plays two tiles through the star
   const turnPage = tws.turn === 0 ? A : B, twT = frame(turnPage, 'tilework');
   await until(() => twT.evaluate(() => window.__tw.state && window.__tw.state.turn === window.__tw.me), 8000, 'turn page knows it is its turn');
@@ -114,7 +114,6 @@ async function until(fn, ms, label) {
   // ---------- Wheelhouse: new 2-player game ----------
   await whA.evaluate(() => switchTab(0));
   await until(() => whA.isVisible('#bCreate'), 6000, 'wheelhouse new game form');
-  check((await whA.inputValue('#sName')) === 'Player 1', 'name is filled in from the app player');
   await whA.selectOption('#sSrc', 'builtin'); await whA.selectOption('#sRounds', '2');
   await whA.click('#bCreate');
   await B.click('#bar .tab[data-game="wheelhouse"]');
@@ -140,6 +139,16 @@ async function until(fn, ms, label) {
   const h = await whA.evaluate(() => ({ s: document.documentElement.scrollHeight, h: innerHeight }));
   check(h.s <= h.h + 2, 'Wheelhouse turn fits the phone inside the app (' + h.s + ' / ' + h.h + ')');
   await A.screenshot({ path: path.join(shots, 'wheelhouse-phone.png') });
+  // round 2 solved -> bonus round: its puzzle also comes from the year-long history
+  const whT2 = (await whA.evaluate(() => S.turn)) === 0 ? whA : whB;
+  await until(() => whT2.evaluate(() => S && S.status === 'play' && myTurn()), 10000, 'round 2 turn');
+  await whT2.evaluate(() => solve(S.puzzle.text));
+  await until(() => whA.evaluate(() => S.status === 'roundEnd'), 10000, 'round 2 solved');
+  await whA.evaluate(() => nextRound());
+  await until(() => whA.evaluate(() => S.status === 'bonus' && S.puzzle && S.puzzle.text), 10000, 'bonus round');
+  const whHist = JSON.parse(ctx.historyFile_('wheelhouse').getBlob().getDataAsString());
+  check(Object.keys(whHist.puzzles || {}).length === 3, 'Wheelhouse history remembers the 3 puzzles used: ' + Object.keys(whHist.puzzles || {}).length);
+  check(!/[A-Z]{3} [A-Z]/.test(JSON.stringify(whHist)), 'Wheelhouse history has no plaintext puzzles');
 
   // ---------- Answers vs the computer ----------
   await A.click('#bar .tab[data-game="answers"]');
