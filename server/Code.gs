@@ -1,4 +1,4 @@
-// Games API 1.3: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
+// Games API 1.4: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Player 1's Drive.
 //
@@ -19,7 +19,7 @@ const GAMES = {
   },
   wheelhouse: {
     file: 'wheelhouse-state', parent: '1uZxZBBM2XHhdecE2h-kJNyvXLBztgqIx',        // Games/Wheelhouse
-    folder: '', strict: true, extra: ['getTrendingPuzzle']
+    folder: '', strict: true, extra: ['getTrendingPuzzle', 'planPuzzle']
   },
   answers: {
     file: 'answers-state', parent: '1-gGJ2O0LXzXBdbX3wB6IbgpcLG7wNcwt',           // Games/Answers
@@ -45,7 +45,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.3', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.4', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -72,6 +72,7 @@ function dispatch_(game, fn, args, who) {
   if (g.extra.indexOf(fn) >= 0) {
     if (fn === 'getWords') return getWords();
     if (fn === 'getTrendingPuzzle') return getTrendingPuzzle();
+    if (fn === 'planPuzzle') return planPuzzle(args[0], args[1]);
     if (fn === 'getOnlineCategories') return getOnlineCategories(args[0], args[1]);
     if (fn === 'planBoard') return planBoard(args[0], args[1], args[2], args[3]);
     if (fn === 'planFinal') return planFinal(args[0], args[1]);
@@ -88,7 +89,7 @@ function setup() {
     Logger.log(game + ' saves: ' + f.getUrl());
   });
   Logger.log('Word list: ' + (getWords().length ? 'found' : 'missing (run buildWords)'));
-  Logger.log('Online puzzle test: ' + JSON.stringify(getTrendingPuzzle()));
+  Logger.log('Online puzzle test: ' + JSON.stringify(trendingPuzzle_({})));
 }
 
 // ---------- saves ----------
@@ -532,11 +533,66 @@ function buildWords() {
   return words.length;
 }
 
-// ---------- Wheelhouse: online puzzles ----------
-// A random "most read on Wikipedia" article from a random day in the last two years.
-// Returns {text, cat, hint, src} or null (the page falls back to built-in).
+// ---------- Wheelhouse: no repeats for a year ----------
+// wheelhouse-history.json (in Games/Wheelhouse) remembers every puzzle used, built-in or online,
+// as {puzzles: {fingerprint: day}}. Only a fingerprint is kept, so the file doesn't give answers away.
+// Nothing used in the last HISTORY_DAYS days is used again. When every built-in puzzle has been
+// used this year, puzzles come from online instead (even in "Built-in only" games).
+const WH_HISTORY_NAME = 'wheelhouse-history.json';
+
+function readWhHistory_(file) {
+  let h = {};
+  try { h = JSON.parse((file || historyFile_('wheelhouse')).getBlob().getDataAsString() || '{}') || {}; } catch (e) { h = {}; }
+  const cut = today_() - HISTORY_DAYS, src = h.puzzles || {}, out = {};
+  Object.keys(src).forEach(function (x) { if (src[x] > cut) out[x] = src[x]; });
+  return { puzzles: out };
+}
+
+function noteWhPuzzle_(fpv) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const file = historyFile_('wheelhouse'), h = readWhHistory_(file);
+    h.puzzles[fpv] = today_();
+    file.setContent(JSON.stringify(h));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// One puzzle. keys: the page's built-in puzzle phrases; preferOnline: try an online one first.
+// Returns {i} (a built-in puzzle) or {text, cat, hint, src: 'online'}, never one used this year
+// unless there's no internet and every built-in has been used (then the one used longest ago).
+function planPuzzle(keys, preferOnline) {
+  keys = (keys || []).map(String);
+  const h = readWhHistory_();
+  const fps = keys.map(fp_);
+  const fresh = [];
+  fps.forEach(function (f, i) { if (!h.puzzles[f]) fresh.push(i); });
+  if (preferOnline || !fresh.length) {
+    const p = trendingPuzzle_(h.puzzles);
+    if (p) { noteWhPuzzle_(fp_(p.text)); return p; }
+  }
+  if (!keys.length) return null;
+  let i;
+  if (fresh.length) i = fresh[Math.floor(Math.random() * fresh.length)];
+  else i = shuffle_(keys.map(function (k, j) { return j; })).sort(function (a, b) { return h.puzzles[fps[a]] - h.puzzles[fps[b]]; })[0];
+  noteWhPuzzle_(fps[i]);
+  return { i: i };
+}
+
+// Older pages call this directly. It skips (and remembers) puzzles too.
 function getTrendingPuzzle() {
-  for (let attempt = 0; attempt < 4; attempt++) {
+  const p = trendingPuzzle_(readWhHistory_().puzzles);
+  if (p) noteWhPuzzle_(fp_(p.text));
+  return p;
+}
+
+// A random "most read on Wikipedia" article from a random day in the last two years, that fits the
+// board and isn't in played ({fingerprint: day}). Returns {text, cat, hint, src} or null.
+function trendingPuzzle_(played) {
+  played = played || {};
+  for (let attempt = 0; attempt < 6; attempt++) {
     const d = new Date(Date.now() - (2 + Math.floor(Math.random() * 700)) * 86400000);
     const url = 'https://en.wikipedia.org/api/rest_v1/feed/featured/' + Utilities.formatDate(d, 'UTC', 'yyyy/MM/dd');
     try {
@@ -548,7 +604,7 @@ function getTrendingPuzzle() {
       arts.forEach(function (a) {
         const raw = (a.titles && a.titles.normalized) || a.normalizedtitle || a.title || '';
         const text = cleanTitle_(raw);
-        if (text) picks.push({ text: text, hint: a.description || '' });
+        if (text && fitsBoard_(text) && !played[fp_(text)]) picks.push({ text: text, hint: a.description || '' });
       });
       if (!picks.length) continue;
       const p = picks[Math.floor(Math.random() * picks.length)];
@@ -558,6 +614,24 @@ function getTrendingPuzzle() {
     }
   }
   return null;
+}
+
+// Same check as the page: at least 6 letters, and it fits the 12/14/14/12 board.
+function fitsBoard_(text) {
+  if (text.replace(/[^A-Z]/g, '').length < 6) return false;
+  const words = text.split(' ');
+  const plans = [[14], [14, 14], [12, 14, 14], [12, 14, 14, 12]];
+  return plans.some(function (caps) {
+    let line = 0, cur = '';
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      if (w.length > caps[line]) return false;
+      if (!cur) cur = w;
+      else if (cur.length + 1 + w.length <= caps[line]) cur += ' ' + w;
+      else { line++; cur = w; if (line >= caps.length || w.length > caps[line]) return false; }
+    }
+    return true;
+  });
 }
 
 function cleanTitle_(raw) {
@@ -587,8 +661,9 @@ function categoryFor_(desc) {
 // ---------- Answers: no repeats for a year ----------
 // answers-history.json (in Games/Answers) remembers what's been played and on which day:
 // built-in category names, final clues, and every online clue (a fingerprint of its question).
-// Nothing played in the last HISTORY_DAYS days is picked again. Built-in categories and finals
-// only come back early when there's no online fallback ("Built-in only" games, or no internet).
+// Nothing played in the last HISTORY_DAYS days is picked again. When the built-in categories or
+// finals run out, online ones are used, even in "Built-in only" games. Built-ins only come back
+// early if the online sites can't be reached (then the ones played longest ago).
 const HISTORY_DAYS = 365;
 const HISTORY_NAME = 'answers-history.json';
 
@@ -606,14 +681,18 @@ function fp_(s) {
   return h1.toString(36) + h2.toString(36);
 }
 
-function historyFile_() {
+// game: 'answers' (default) or 'wheelhouse'. Each game's history sits in its own Games/<Game> folder.
+function historyFile_(game) {
+  game = game || 'answers';
+  const key = game === 'answers' ? 'HISTORY_ID' : 'HISTORY_ID_' + game;
+  const name = game === 'answers' ? HISTORY_NAME : WH_HISTORY_NAME;
   const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty('HISTORY_ID');
+  const id = props.getProperty(key);
   if (id) { try { return DriveApp.getFileById(id); } catch (e) { /* look it up below */ } }
-  const parent = DriveApp.getFolderById(GAMES.answers.parent);
-  const it = parent.getFilesByName(HISTORY_NAME);
-  const f = it.hasNext() ? it.next() : parent.createFile(HISTORY_NAME, '{}', 'application/json');
-  props.setProperty('HISTORY_ID', f.getId());
+  const parent = DriveApp.getFolderById(GAMES[game].parent);
+  const it = parent.getFilesByName(name);
+  const f = it.hasNext() ? it.next() : parent.createFile(name, '{}', 'application/json');
+  props.setProperty(key, f.getId());
   return f;
 }
 
@@ -653,7 +732,7 @@ function freshFirst_(names, played) {
 
 // One board. names: built-in categories the page can still use this game; want: how many of them
 // it would like (4 for Built-in + online, 6 for Built-in only, 0 for Online only); avoid: category
-// names already on the board; online: whether online clues are allowed.
+// names already on the board; online: no longer used (online clues fill in whenever built-ins run out).
 // Returns {builtin: [names], online: [{name, src, clues}]}, 6 categories in all.
 function planBoard(names, want, avoid, online) {
   names = (names || []).map(String);
@@ -661,9 +740,9 @@ function planBoard(names, want, avoid, online) {
   want = Math.min(Math.max(Math.floor(Number(want) || 0), 0), 6);
   const h = readHistory_();
   const order = freshFirst_(names, h.cats);
-  const builtin = (online ? order.fresh : order.all).slice(0, want);
+  const builtin = order.fresh.slice(0, want);
   let cats = [];
-  if (online && builtin.length < 6) cats = fetchOnline_(6 - builtin.length, avoid.concat(builtin), h);
+  if (builtin.length < 6) cats = fetchOnline_(6 - builtin.length, avoid.concat(builtin), h);
   // Still short (no internet, or Built-in only): fill with built-ins, least recently played first.
   order.all.forEach(function (n) { if (builtin.length + cats.length < 6 && builtin.indexOf(n) < 0) builtin.push(n); });
   const clues = [];
@@ -674,6 +753,7 @@ function planBoard(names, want, avoid, online) {
 
 // The final clue. keys: one per built-in final ("Category :: clue"). Returns {i} (a built-in
 // final), or {cat, q, a} (an online one, when every built-in final was played this year).
+// online: no longer used (the final goes online whenever the built-in finals run out).
 function planFinal(keys, online) {
   keys = (keys || []).map(String);
   const h = readHistory_();
@@ -683,10 +763,8 @@ function planFinal(keys, online) {
     noteHistory_({ finals: [fps[order[0]]] });
     return { i: order[0] };
   }
-  if (online) {
-    const f = fetchFinal_(h);
-    if (f) { noteHistory_({ clues: [fp_(f.q)] }); return f; }
-  }
+  const f = fetchFinal_(h);
+  if (f) { noteHistory_({ clues: [fp_(f.q)] }); return f; }
   if (!order.length) return null;
   noteHistory_({ finals: [fps[order[0]]] });
   return { i: order[0] };
@@ -750,11 +828,15 @@ function fetchOnline_(n, avoid, h) {
 }
 
 // One hard online clue for the final, not played this year.
+// Tries The Trivia API first, then Open Trivia DB if that one isn't answering.
 function fetchFinal_(h) {
-  const cats = shuffle_(ONLINE_CATS.filter(function (c) { return c.tta; }));
-  for (let k = 0; k < 3 && k < cats.length; k++) {
-    const pool = fetchClues_('tta', cats[k].tta, 'hard').filter(function (c) { return goodClue_(c) && !h.clues[fp_(c.q)]; });
-    if (pool.length) { const c = pool[0]; return { cat: cats[k].name, q: c.q, a: c.a }; }
+  const srcs = ['tta', 'otdb'];
+  for (let j = 0; j < srcs.length; j++) {
+    const cats = shuffle_(ONLINE_CATS.filter(function (c) { return c[srcs[j]]; }));
+    for (let k = 0; k < 3 && k < cats.length; k++) {
+      const pool = fetchClues_(srcs[j], cats[k][srcs[j]], 'hard').filter(function (c) { return goodClue_(c) && !h.clues[fp_(c.q)]; });
+      if (pool.length) { const c = pool[0]; return { cat: cats[k].name, q: c.q, a: c.a }; }
+    }
   }
   return null;
 }
