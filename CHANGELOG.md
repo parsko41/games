@@ -1,5 +1,13 @@
 # Games app: changelog
 
+## No repeats for a year, both games (2026-10-15): Wheelhouse 1.4, Answers 1.5, Games API 1.4
+- **Wheelhouse** had no memory across games: each game picked from the 256 built-in puzzles at random and online puzzles were never tracked, so repeats came up quickly. Now every puzzle used (built-in, online, and the bonus round; both phones, every game) is stamped with the day it was used, and nothing used in the last 365 days comes up again. When the built-ins are all used, puzzles come from online (Wikipedia's most-read articles), even in "Built-in only" games.
+- **Answers** already had a year of history (1.4), but "Built-in only" games went back to old categories once the 36 built-in categories were used (about 3 games), and the final repeated once the 16 built-in finals were used if The Trivia API didn't answer. Now both switch to fresh online clues instead (the final also tries Open Trivia DB).
+- A puzzle or clue only comes back early if every built-in has been used this year **and** the online sites can't be reached; then the one used longest ago is picked.
+- How: `wheelhouse-history.json` in Games/Wheelhouse on Drive (`{puzzles: {fingerprint: day}}`, a fingerprint, not the puzzle text, so the file doesn't give answers away; entries over a year old are dropped). New API call `planPuzzle(texts, preferOnline)` returns `{i}` (a built-in) or an online puzzle; `getTrendingPuzzle` also checks and records history for older pages. In Answers' `planBoard`/`planFinal` the `online` argument is no longer used. The pages fall back to the old behavior if the Games API hasn't been updated yet.
+- **Needs the new `server/Code.gs` (Player 1):** paste it into the Games API project, save, then Deploy → Manage deployments → pencil → Version: **New version** → Deploy. Don't make a new deployment. Tap your avatar afterwards: it should say "Games API 1.4". Wheelhouse's history starts empty, so puzzles from before this update can show up once more.
+- `test/e2e.js`: plays Wheelhouse through to the bonus round and checks the history file; removed two stale checks (the old name box, a hard-coded Tilework version).
+
 ## Gardens 0.4 (2026-10-13): answer the open questions in the app
 - Open questions are answered in the app (☰ → Open questions, or the button on the intro screen): each player writes their own answer, either records the decision, and both see each other's. Saved on Drive as a second save file (`Games/Garden/Save data/garden-state-4.json`), separate from the game, so no server change and no redeploy.
 - Real names removed from the repo's current files (docs, comments, test data), replaced with Player 1 / Player 2. Earlier commits in GitHub's history still contain them.
