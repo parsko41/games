@@ -148,6 +148,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.4', '2026-10-15', 'No repeated puzzles. Every puzzle used (built-in or online, both phones, all games) is remembered with the date, and none is used again for a year. When the built-in puzzles run out, fresh online ones are used instead, even in Built-in only games. Needs Games API 1.4.'],
   ['1.3', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
   ['1.2', '2026-10-11', 'The clue under the puzzle is twice as big.'],
   ['1.1', '2026-10-11', 'Bigger text everywhere, and much bigger letter keys at the bottom. The value strip is a little shorter so a whole turn still fits on the screen.'],
@@ -507,7 +508,11 @@ const store = {
     google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
       .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
   },
-  online: function (cb) { google.script.run.withSuccessHandler(cb).withFailureHandler(function () { cb(null); }).getTrendingPuzzle(); }
+  online: function (cb) { google.script.run.withSuccessHandler(cb).withFailureHandler(function () { cb(null); }).getTrendingPuzzle(); },
+  // The Games API keeps a year of history so puzzles aren't repeated. null = an older Games API.
+  plan: function (texts, preferOnline, cb) {
+    google.script.run.withSuccessHandler(function (r) { cb(r || null); }).withFailureHandler(function () { cb(null); }).planPuzzle(texts, preferOnline);
+  }
 };
 
 function commit(ns, after) {
@@ -630,21 +635,27 @@ function layout(text) {
 }
 
 // ---------- puzzles ----------
-function pickBuiltIn(ns) {
+function builtIn(ns, i) {
   ns.used = ns.used || [];
-  let pool = PUZZLES.map(function (p, i) { return i; }).filter(function (i) { return ns.used.indexOf(i) < 0; });
-  if (!pool.length) { ns.used = []; pool = PUZZLES.map(function (p, i) { return i; }); }
-  const i = pool[Math.floor(Math.random() * pool.length)];
   ns.used.push(i);
   return { text: PUZZLES[i].text.replace(/\s*\?$/, ''), cat: PUZZLES[i].cat, hint: '', src: 'built-in' };
 }
+function pickBuiltIn(ns) {             // only used with an older Games API (no year-long history)
+  ns.used = ns.used || [];
+  let pool = PUZZLES.map(function (p, i) { return i; }).filter(function (i) { return ns.used.indexOf(i) < 0; });
+  if (!pool.length) { ns.used = []; pool = PUZZLES.map(function (p, i) { return i; }); }
+  return builtIn(ns, pool[Math.floor(Math.random() * pool.length)]);
+}
+function okOnline(p) { return p && p.text && layout(p.text) && lettersIn(p.text).length >= 6; }
+// The Games API picks the puzzle (none used in the last year) and remembers it.
 function getPuzzle(ns, allowOnline, cb) {
   const src = ns.settings.source;
   const tryOnline = allowOnline && (src === 'online' || (src === 'mixed' && Math.random() < 0.4));
-  if (!tryOnline) return cb(pickBuiltIn(ns));
-  store.online(function (p) {
-    if (p && p.text && layout(p.text) && lettersIn(p.text).length >= 6) cb(p);
-    else cb(pickBuiltIn(ns));
+  store.plan(PUZZLES.map(function (p) { return p.text.replace(/\s*\?$/, ''); }), tryOnline, function (r) {
+    if (r && r.text && okOnline(r)) return cb({ text: r.text, cat: r.cat, hint: r.hint || '', src: 'online' });
+    if (r && PUZZLES[r.i]) return cb(builtIn(ns, r.i));
+    if (!tryOnline) return cb(pickBuiltIn(ns));
+    store.online(function (p) { cb(okOnline(p) ? p : pickBuiltIn(ns)); });
   });
 }
 
@@ -708,12 +719,15 @@ function nextRound() {
 function startBonus(ns) {
   let lead = 0;
   ns.players.forEach(function (p, i) { if (p.total > ns.players[lead].total) lead = i; });
-  const pz = pickBuiltIn(ns);
-  ns.status = 'bonus';
-  ns.puzzle = pz; ns.guessed = BONUS_GIVEN.split(''); ns.last = '';
-  ns.bonus = { p: lead, stage: 'pick', picks: [], prize: BONUS_PRIZES[Math.floor(Math.random() * BONUS_PRIZES.length)], won: false, guess: '' };
-  addLog(ns, 'Bonus round! ' + ns.players[lead].name + ' leads with ' + money(ns.players[lead].total) + '. R S T L N E are free.');
-  commit(ns);
+  busy = true; render();
+  getPuzzle(ns, false, function (pz) {
+    busy = false;
+    ns.status = 'bonus';
+    ns.puzzle = pz; ns.guessed = BONUS_GIVEN.split(''); ns.last = '';
+    ns.bonus = { p: lead, stage: 'pick', picks: [], prize: BONUS_PRIZES[Math.floor(Math.random() * BONUS_PRIZES.length)], won: false, guess: '' };
+    addLog(ns, 'Bonus round! ' + ns.players[lead].name + ' leads with ' + money(ns.players[lead].total) + '. R S T L N E are free.');
+    commit(ns);
+  });
 }
 
 function spin() {
