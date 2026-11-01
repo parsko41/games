@@ -4,11 +4,19 @@ You're helping one of two players (Player 1 or Player 2) change their private ga
 They are not programmers and usually work from a phone. Read this whole file first.
 
 ## What this is
-"Games": four 2-player games in one installable web app (Android home-screen icon).
+"Games": six 2-player games in one installable web app (Android home-screen icon).
 - **Tilework**: Scrabble-style word game. `tilework/index.html`
 - **Wheelhouse**: Wheel of Fortune-style. `wheelhouse/index.html`
 - **Answers**: Jeopardy-style, with an optional computer opponent. `answers/src/` (built into `answers/index.html`)
 - **Gardens** (new, still being designed): shape a plot together, then grow it overnight with plants, weeds and scarce water. `garden/index.html`. Its rules and open questions live in `garden/RULES.md`.
+- **Letter Thief** (tab "Thief"): an 8x8 letter grid, Blue vs Red. Trace words through touching
+  letters to claim tiles and steal the other player's. `thief/index.html`
+- **Cipher Strike** (tab "Cipher"): each player picks a secret 5-letter word, then they take turns
+  guessing each other's (Wordle colors), with Smoke Screen / Data Leak sabotage. `cipher/index.html`.
+  Secret words (and leaked letters) go through `hide()`/`reveal()` like the other answers.
+- Letter Thief and Cipher Strike use Tilework's word list (`getWords`), sharing its phone cache
+  (`tilework-words-1` in localStorage), and save to `Games/Letter Thief/Save data` and
+  `Games/Cipher Strike/Save data` (made by the Games API the first time, like Garden's).
 
 Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`, branch `main`, root).
 
@@ -103,6 +111,8 @@ Mistakes are recoverable: GitHub keeps every old version (open the file → Hist
 | `answers/src/` | Answers source + clue lists; `answers/index.html` is built from it |
 | `garden/index.html` | Gardens (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
 | `garden/RULES.md` | Gardens rules: what's decided and the open questions the players are settling together |
+| `thief/index.html` | Letter Thief (whole game in one file) |
+| `cipher/index.html` | Cipher Strike (whole game in one file) |
 | `server/Code.gs` | Games API (Apps Script, runs in Player 1's account) |
 | `test/` | Fake server + end-to-end test (Node + Playwright) |
 | `README.md`, `CHANGELOG.md` | Setup notes and change history |

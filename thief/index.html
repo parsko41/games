@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Letter Thief</title>
+<style>
+  :root{
+    --bg:#10162b; --panel:#1a2342; --panel2:#222d55; --ink:#eef1ff; --dim:#9aa4c9;
+    --gold:#ffcf4a; --ok:#35c46a; --red:#e5484d;
+    --p0:#3d7bff; --p1:#e5484d; --free:#c9cdd9;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.primary{background:var(--gold);color:#1b1400;font-weight:700}
+  button.go{background:var(--ok);color:#04210f;font-weight:700}
+  #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
+  header{display:flex;align-items:center;gap:6px;margin-bottom:6px;min-height:36px}
+  header #ver{font-size:11px;color:var(--dim);white-space:nowrap}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:0}
+
+  /* tabs: Game 1-5, evenly spread so all five fit without scrolling */
+  #tabs{display:flex;gap:5px;flex:1;min-width:0}
+  #tabs button{flex:1 1 0;min-width:0;padding:10px 0 4px;border-radius:10px;font-size:13px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
+  #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
+  #tabs button .dot{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{position:absolute;top:0;right:3px;font-size:10px}
+  #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
+
+  /* players: blue (first seat) vs red (second seat) */
+  #players{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 6px}
+  .p{background:var(--panel);border-radius:10px;padding:4px 8px 4px 10px;border:2px solid transparent;min-width:0;line-height:1.25;position:relative;overflow:hidden}
+  .p::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+  .p.s0::before{background:var(--p0)}
+  .p.s1::before{background:var(--p1)}
+  .p.on{border-color:var(--gold);background:#2a2a46}
+  .p .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:17px}
+  .p .bk{font-size:21px;font-weight:800;color:var(--gold);display:flex;align-items:baseline;gap:6px}
+  .p .tt{font-size:13px;color:var(--dim);font-weight:400}
+  .p.me .nm::after{content:" (you)";color:var(--dim);font-weight:400;font-size:13px}
+
+  #msg{background:var(--panel);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:16px;line-height:1.3}
+
+  /* the 8x8 grid; sized so a whole turn fits on a phone screen */
+  #gridWrap{position:relative;width:min(100%, calc(100vh - 330px));min-width:260px;margin:0 auto}
+  #grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:6px;background:#0b1020;border-radius:12px;border:2px solid #2a3566;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  .c{aspect-ratio:1;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:min(6vw,28px);background:var(--free);color:#1a1f33;position:relative;cursor:pointer;transition:transform .12s}
+  .c.o0{background:var(--p0);color:#fff}
+  .c.o1{background:var(--p1);color:#fff}
+  .c.sel{box-shadow:0 0 0 3px var(--gold);transform:scale(.9);z-index:1}
+  .c.sel.first{box-shadow:0 0 0 3px var(--gold),0 0 12px var(--gold)}
+  .c.last::after{content:"";position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:#fffc;box-shadow:0 0 0 1px #0006}
+  .c.fresh{animation:pop .6s}
+  @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+  #trace{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+
+  #wordRow{display:flex;align-items:center;gap:8px;margin:6px 0;min-height:40px;background:var(--panel);border-radius:10px;padding:4px 10px}
+  #word{font-size:22px;font-weight:800;letter-spacing:2px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #word.none{font-size:15px;font-weight:400;letter-spacing:0;color:var(--dim)}
+  #check{font-size:14px;text-align:right;white-space:nowrap}
+  #check.good{color:var(--ok);font-weight:700}
+  #check.bad{color:#ff8a8d}
+  #check.dim{color:var(--dim)}
+
+  #actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+  #actions button{flex:1 1 25%;min-width:80px;padding:12px 10px;font-size:18px}
+  #actions button.primary{flex:2 1 40%}
+  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:16px}
+  #hist{font-size:14px;color:var(--dim)}
+  #hist div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 2px}
+  #hist b{color:var(--ink);letter-spacing:1px}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:0}
+  .sw.s0{background:var(--p0)}
+  .sw.s1{background:var(--p1)}
+
+  .card{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:20px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .seat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3566}
+  .small{font-size:15px;color:var(--dim)}
+  .big{font-size:22px;font-weight:800;color:var(--gold)}
+  .center{text-align:center}
+
+  #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:85vh;overflow:auto}
+  #sheet h3{margin:4px 0 10px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;z-index:20;display:none;max-width:90vw;font-size:16px}
+  .hidden{display:none !important}
+  @media (min-width:700px){
+    #app{max-width:640px;padding-bottom:40px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="tabs"></div>
+    <small id="ver"></small>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="lobby"></div>
+  <div id="game" class="hidden">
+    <div id="players"></div>
+    <div id="msg"></div>
+    <div id="gridWrap"><div id="grid"></div><svg id="trace"></svg></div>
+    <div id="wordRow"><div id="word"></div><div id="check"></div></div>
+    <div id="actions"></div>
+    <div id="hist"></div>
+  </div>
+</div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="../shim.js" data-game="thief"></script>
+<script>
+// ---------- versions (bump on every change) ----------
+const VERSIONS = [
+  ['1.0', '2026-11-01', 'First version: an 8x8 grid of letters, Blue against Red. Trace a word through touching letters (sideways, up and down, or diagonally) to claim its tiles: +10 for each free tile, +20 for each tile stolen from the other player (they lose 10). Long words earn a bonus. Up to 5 games at once, saved on Drive like the other games.']
+];
+
+// ---------- rules ----------
+const SIZE = 8, CELLS = SIZE * SIZE, MIN_LEN = 3, MAX_SEATS = 2;
+const CAPTURE = 10, STEAL = 20, STOLEN = 10;
+function lengthBonus(n) { return n >= 7 ? 50 : n === 6 ? 20 : n === 5 ? 10 : 0; }
+// How often each letter turns up on a new board: lots of vowels and R S T L N, few of the hard ones.
+const FREQ = { E: 11, A: 8, I: 7, O: 7, N: 6, R: 6, T: 6, S: 5, L: 4, U: 3, D: 4, G: 3, C: 3, M: 3, P: 3, H: 3,
+               B: 2, F: 2, W: 2, Y: 2, K: 1, V: 1, X: 0.5, Z: 0.5, J: 0.4, Q: 0.3 };
+const VOWELS = 'AEIOU';
+
+// ---------- device / local state ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let DEV = lsGet('thief-device');
+if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('thief-device', DEV); }
+
+let S = null;            // current game state (from server)
+let busy = false;        // waiting on a save
+let sel = [];            // tiles picked for the word being traced (local only)
+let lastTurnKey = '';
+const MAX_GAMES = 5;
+let curSlot = Math.min(Math.max(parseInt(lsGet('thief-slot') || '0', 10) || 0, 0), MAX_GAMES - 1);
+let GAMES = [];          // summaries of every tab's game, from the server
+let loaded = false;      // have we heard from the server for this tab yet
+
+const $ = function (id) { return document.getElementById(id); };
+const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const av = function (p) { return window.GamesApp ? esc(GamesApp.avatar(p.dev, p.name)) : ''; };
+
+// ---------- word list ----------
+// The same list as Tilework (Collins + NASPA, about 280,000 words), shared on the phone with
+// Tilework's copy so it's only downloaded once.
+let DICT = null;
+const WORDS_CACHE = 'tilework-words-1';
+function decodeWords(t) { const s = new Set(); let prev = ''; t.split(/\r?\n/).forEach(function (line) { if (!line) return; const w = prev.slice(0, parseInt(line[0], 16)) + line.slice(1); s.add(w); prev = w; }); return s; }
+function loadWords() {
+  let t = null;
+  try { t = localStorage.getItem(WORDS_CACHE); } catch (e) {}
+  const done = function (t) {
+    const d = t ? decodeWords(t) : null;
+    DICT = d && d.size > 100000 ? d : 'off';
+    if (DICT === 'off') toast('Couldn\'t load the word list, so words won\'t be checked this time.');
+    render();
+  };
+  if (t) return setTimeout(function () { done(t); }, 0);
+  google.script.run.withSuccessHandler(function (x) {
+    if (x) { try { localStorage.setItem(WORDS_CACHE, x); } catch (e) {} }
+    done(x || null);
+  }).withFailureHandler(function () { done(null); }).getWords();
+}
+function isWord(w) { return DICT === 'off' || (DICT && DICT.has(w)); }
+
+// ---------- server ----------
+// No hidden answers in this game, so hide() only makes a copy and reveal() only fixes names.
+function hide(ns) { return JSON.parse(JSON.stringify(ns)); }
+function reveal(st) { if (st && window.GamesApp) GamesApp.fixNames(st.players); return st; }
+
+// Every call is tagged with the tab it was for; answers for a tab we've since left are ignored.
+const store = {
+  get: function (cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { if (slot !== curSlot) return; GAMES = r.games || GAMES; cb(reveal(r.state)); })
+      .withFailureHandler(function (e) { if (slot === curSlot) cb(undefined, e); }).getState(slot);
+  },
+  save: function (ns, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot !== curSlot) { busy = false; renderTabs(); return; } cb(r.ok, reveal(r.state)); })
+      .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
+      .saveState(JSON.stringify(hide(ns)), slot);
+  },
+  close: function (gid, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
+      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
+  }
+};
+
+function commit(ns) {
+  if (busy) return;
+  busy = true; render();
+  store.save(ns, function (ok, saved) {
+    busy = false;
+    if (!ok && saved !== undefined) toast('Someone moved first, so the game refreshed.');
+    if (saved !== undefined) apply(saved);
+    else render();
+  });
+}
+
+function switchTab(i) {
+  if (i === curSlot || busy) return;
+  curSlot = i; lsSet('thief-slot', String(i));
+  S = null; loaded = false; sel = []; lastTurnKey = '';
+  closeSheet();
+  render();
+  store.get(function (st) { if (st !== undefined) apply(st); });
+}
+function tabInfo(g) {
+  if (!g) return { label: 'New game', dot: false };
+  if (window.GamesApp) g = Object.assign({}, g, { names: g.names.map(function (n, i) { return GamesApp.nameOf(g.devs[i], n); }) });
+  const mine = g.devs.indexOf(DEV) >= 0;
+  if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
+  const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
+  const label = mine ? 'vs ' + others.join(' & ') : g.names.join(' & ');
+  const dot = mine && (g.act === DEV || g.act === '*');
+  return { label: label, dot: dot, over: g.status === 'over' };
+}
+function renderTabs() {
+  const used = [];
+  for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
+  const free = GAMES.length ? (function () { for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) return i; return -1; })() : -1;
+  $('tabs').innerHTML = used.map(function (i) {
+    const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">Game ' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+  }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
+}
+$('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
+
+function next() {           // copy of S with moveNo bumped
+  const ns = JSON.parse(JSON.stringify(S));
+  ns.moveNo = S.moveNo + 1;
+  return ns;
+}
+
+function poll() {
+  if (busy || document.hidden) return;
+  store.get(function (st) { if (st !== undefined && !busy) apply(st); });
+}
+
+function apply(st) {
+  const firstLoad = !loaded;
+  const changed = firstLoad || (!S !== !st) || (S && st && (st.gid !== S.gid || st.moveNo !== S.moveNo));
+  const fresh = !firstLoad && S && st && S.gid === st.gid && st.moveNo !== S.moveNo;
+  loaded = true;
+  S = st;
+  renderTabs();
+  if (!changed) return;
+  sel = [];
+  render(fresh);
+  buzzIfMyTurn();
+}
+
+// ---------- helpers ----------
+function me() { return S && S.players ? S.players.findIndex(function (p) { return p.dev === DEV; }) : -1; }
+function myTurn() { return S && S.status === 'play' && me() === S.turn; }
+function name(i) { return S.players[i] ? S.players[i].name : '?'; }
+function addLog(ns, line) { ns.log = [line].concat(ns.log || []).slice(0, 8); }
+function newGid() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function touching(a, b) {
+  const dr = Math.abs(Math.floor(a / SIZE) - Math.floor(b / SIZE)), dc = Math.abs(a % SIZE - b % SIZE);
+  return a !== b && dr <= 1 && dc <= 1;
+}
+function wordOf(path) { return path.map(function (i) { return S.board[i].l; }).join(''); }
+
+// A fresh board: 64 letters picked by FREQ, re-rolled until it has a sensible number of vowels.
+function makeBoard() {
+  const keys = Object.keys(FREQ), total = keys.reduce(function (t, k) { return t + FREQ[k]; }, 0);
+  for (;;) {
+    const b = [];
+    for (let i = 0; i < CELLS; i++) {
+      let r = Math.random() * total, l = 'E';
+      for (let k = 0; k < keys.length; k++) { r -= FREQ[keys[k]]; if (r < 0) { l = keys[k]; break; } }
+      b.push(l);
+    }
+    const v = b.filter(function (l) { return VOWELS.indexOf(l) >= 0; }).length;
+    if (v >= 19 && v <= 26 && b.filter(function (l) { return l === 'Q'; }).length <= 1) return b.map(function (l) { return { l: l, o: -1 }; });
+  }
+}
+
+// What the traced word would score, or why it can't be played.
+function evaluate(path) {
+  const m = me(), w = wordOf(path);
+  const out = { w: w, ok: false, why: '', pts: 0, cap: 0, steal: 0, bonus: 0 };
+  if (path.length < MIN_LEN) { out.why = MIN_LEN + '+ letters'; return out; }
+  if (!DICT) { out.why = 'Loading words…'; return out; }
+  if (!isWord(w)) { out.why = 'Not a word'; return out; }
+  if ((S.played || []).indexOf(w) >= 0) { out.why = 'Already played'; return out; }
+  path.forEach(function (i) {
+    const o = S.board[i].o;
+    if (o < 0) out.cap++;
+    else if (o !== m) out.steal++;
+  });
+  if (!out.cap && !out.steal) { out.why = 'All yours already'; return out; }
+  out.bonus = lengthBonus(path.length);
+  out.pts = out.cap * CAPTURE + out.steal * STEAL + out.bonus;
+  out.ok = true;
+  return out;
+}
+
+// ---------- actions ----------
+function newGame(nm) {
+  const ns = {
+    app: 'thief', gid: newGid(), moveNo: 0, status: 'lobby',
+    players: [{ dev: DEV, name: nm, score: 0 }], turn: 0, board: makeBoard(),
+    played: [], last: [], passes: 0, log: [nm + ' started a new game.'], moves: [], endNote: ''
+  };
+  commit(ns);
+}
+function closeGame() {
+  if (!S || busy) return;
+  busy = true; render();
+  store.close(S.gid, function (st) { busy = false; apply(st); toast('Game closed. This tab is free.'); });
+}
+function begin(ns) {          // both seats filled: who goes first is random
+  ns.status = 'play';
+  ns.turn = Math.floor(Math.random() * ns.players.length);
+  addLog(ns, ns.players[ns.turn].name + ' goes first.');
+}
+function join(nm) {
+  if (S.players.length >= MAX_SEATS) return;
+  const ns = next();
+  ns.players.push({ dev: DEV, name: nm, score: 0 });
+  addLog(ns, nm + ' joined.');
+  begin(ns);
+  commit(ns);
+}
+function claimSeat(i) {
+  const ns = next();
+  ns.players[i].dev = DEV;
+  addLog(ns, ns.players[i].name + ' is now playing on this phone.');
+  commit(ns);
+}
+function rematch() {
+  const ns = next();
+  ns.gid = newGid(); ns.moveNo = 0;
+  ns.players.forEach(function (p) { p.score = 0; });
+  ns.board = makeBoard(); ns.played = []; ns.last = []; ns.passes = 0; ns.log = []; ns.moves = []; ns.endNote = '';
+  begin(ns);
+  commit(ns);
+}
+function finish(ns, why) {
+  ns.status = 'over';
+  const a = ns.players[0], b = ns.players[1];
+  const res = a.score === b.score ? 'It\'s a tie at ' + a.score + '.' : (a.score > b.score ? a : b).name + ' wins ' + Math.max(a.score, b.score) + ' to ' + Math.min(a.score, b.score) + '.';
+  ns.endNote = why + ' ' + res;
+  addLog(ns, ns.endNote);
+}
+function submitWord() {
+  if (!myTurn() || busy) return;
+  const ev = evaluate(sel);
+  if (!ev.ok) return toast(ev.why);
+  const ns = next(), m = ns.turn, opp = 1 - m, p = ns.players[m];
+  sel.forEach(function (i) {
+    if (ns.board[i].o === opp) ns.players[opp].score -= STOLEN;
+    ns.board[i].o = m;
+  });
+  p.score += ev.pts;
+  ns.played = (ns.played || []).concat([ev.w]);
+  ns.last = sel.slice();
+  ns.passes = 0;
+  const parts = [];
+  if (ev.cap) parts.push(ev.cap + ' new');
+  if (ev.steal) parts.push(ev.steal + ' stolen');
+  if (ev.bonus) parts.push('+' + ev.bonus + ' long word');
+  const line = p.name + ' played ' + ev.w + ' for ' + ev.pts + ' (' + parts.join(', ') + ').';
+  addLog(ns, line);
+  ns.moves = (ns.moves || []).concat([{ p: m, t: ev.w + ' +' + ev.pts + (ev.steal ? ', stole ' + ev.steal : ''), c: sel.slice() }]);   // every move, for the Winners' Log
+  sel = [];
+  if (ns.board.every(function (c) { return c.o >= 0; })) finish(ns, 'Every tile is taken.');
+  else ns.turn = opp;
+  commit(ns);
+}
+function pass() {
+  if (!myTurn() || busy) return;
+  const ns = next(), p = ns.players[ns.turn];
+  ns.passes = (ns.passes || 0) + 1;
+  ns.last = [];
+  addLog(ns, p.name + ' passed.');
+  ns.moves = (ns.moves || []).concat([{ p: ns.turn, t: 'Passed' }]);
+  sel = [];
+  if (ns.passes >= 2) finish(ns, 'Both players passed.');
+  else ns.turn = 1 - ns.turn;
+  commit(ns);
+}
+
+// Tap letters one after another. Tap the last one again to take it back, an earlier one to go back
+// to it, or a letter that doesn't touch the last one to start over from there.
+function tapCell(i) {
+  if (!myTurn() || busy) return;
+  const k = sel.indexOf(i);
+  if (k >= 0 && k === sel.length - 1) sel.pop();
+  else if (k >= 0) sel = sel.slice(0, k + 1);
+  else if (!sel.length || touching(sel[sel.length - 1], i)) sel.push(i);
+  else sel = [i];
+  renderGrid(false); renderWord(); renderActions();
+}
+$('grid').onclick = function (e) { const c = e.target.closest('.c'); if (c) tapCell(+c.dataset.i); };
+
+// ---------- render ----------
+function render(fresh) {
+  $('ver').textContent = 'v' + VERSIONS[0][0];
+  renderTabs();
+  if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); return; }
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  renderPlayers(); renderMsg(); renderGrid(fresh); renderWord(); renderActions(); renderHist();
+}
+
+function renderPlayers() {
+  const m = me();
+  const owned = [0, 0];
+  S.board.forEach(function (c) { if (c.o >= 0) owned[c.o]++; });
+  $('players').innerHTML = S.players.map(function (p, i) {
+    const on = S.status === 'play' && S.turn === i;
+    return '<div class="p s' + i + (on ? ' on' : '') + (i === m ? ' me' : '') + '"><div class="nm">' + av(p) + esc(p.name) + '</div>' +
+      '<div class="bk">' + p.score + '<span class="tt">' + owned[i] + ' tile' + (owned[i] === 1 ? '' : 's') + '</span></div></div>';
+  }).join('') + (S.players.length < 2 ? '<div class="p s1"><div class="nm small">Waiting…</div></div>' : '');
+}
+
+function renderMsg() {
+  let t;
+  if (S.status === 'over') t = S.endNote || 'Game over.';
+  else if (me() < 0) t = 'You\'re watching.';
+  else if (myTurn()) t = 'Your turn: spell a word.';
+  else t = 'Waiting for ' + name(S.turn) + '…';
+  $('msg').textContent = t;
+}
+
+function renderGrid(fresh) {
+  const last = S.last || [];
+  $('grid').innerHTML = S.board.map(function (c, i) {
+    const k = sel.indexOf(i);
+    return '<div class="c' + (c.o >= 0 ? ' o' + c.o : '') + (k >= 0 ? ' sel' : '') + (k === 0 ? ' first' : '') +
+      (last.indexOf(i) >= 0 ? ' last' + (fresh ? ' fresh' : '') : '') + '" data-i="' + i + '">' + esc(c.l) + '</div>';
+  }).join('');
+  drawTrace();
+}
+
+// The line through the traced letters, drawn over the grid.
+function drawTrace() {
+  const svg = $('trace'), wrap = $('gridWrap');
+  if (sel.length < 1) { svg.innerHTML = ''; return; }
+  const box = wrap.getBoundingClientRect(), cells = $('grid').children;
+  svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+  const pts = sel.map(function (i) {
+    const r = cells[i].getBoundingClientRect();
+    return [r.left - box.left + r.width / 2, r.top - box.top + r.height / 2];
+  });
+  const w = Math.max(4, box.width / 80);
+  svg.innerHTML = (pts.length > 1 ? '<polyline points="' + pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') +
+    '" fill="none" stroke="#ffcf4a" stroke-opacity=".6" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
+    '<circle cx="' + pts[0][0] + '" cy="' + pts[0][1] + '" r="' + w * 1.1 + '" fill="#ffcf4a" fill-opacity=".85"/>';
+}
+window.addEventListener('resize', function () { if (S && S.status !== 'lobby') drawTrace(); });
+
+function renderWord() {
+  const w = $('word'), c = $('check');
+  if (!sel.length) {
+    w.className = 'none';
+    w.textContent = myTurn() ? 'Tap letters to spell a word' : '';
+    c.className = ''; c.textContent = '';
+    return;
+  }
+  const ev = evaluate(sel);
+  w.className = ''; w.textContent = ev.w;
+  if (ev.ok) {
+    c.className = 'good';
+    c.textContent = '+' + ev.pts + (ev.steal ? ' · steals ' + ev.steal : '');
+  } else {
+    c.className = sel.length < MIN_LEN || !DICT ? 'dim' : 'bad';
+    c.textContent = ev.why;
+  }
+}
+
+function renderActions() {
+  const a = $('actions'), m = me();
+  const dis = busy ? ' disabled' : '';
+  a.onclick = null;
+  if (m < 0) {
+    a.innerHTML = '<div class="note">You\'re watching. If you\'re one of these players (first time in the Games app):</div>' +
+      S.players.map(function (p, i) { return '<button data-claim="' + i + '"' + dis + '>I\'m ' + esc(p.name) + '</button>'; }).join('');
+    a.onclick = function (e) { const b = e.target.closest('button'); if (b && b.dataset.claim) claimSeat(+b.dataset.claim); };
+    return;
+  }
+  if (S.status === 'play') {
+    const mine = myTurn(), ok = mine && sel.length && evaluate(sel).ok;
+    a.innerHTML = '<button id="bClear"' + (mine && sel.length ? dis : ' disabled') + '>Clear</button>' +
+      '<button id="bPass"' + (mine ? dis : ' disabled') + '>Pass</button>' +
+      '<button class="primary" id="bSubmit"' + (ok ? dis : ' disabled') + '>Submit Turn</button>';
+    $('bClear').onclick = function () { sel = []; renderGrid(false); renderWord(); renderActions(); };
+    $('bPass').onclick = passSheet;
+    $('bSubmit').onclick = submitWord;
+    return;
+  }
+  if (S.status === 'over') {
+    a.innerHTML = '<button class="primary" id="bRe"' + dis + '>Rematch (same players)</button><button id="bNew"' + dis + '>New game</button>';
+    $('bRe').onclick = rematch;
+    $('bNew').onclick = function () { setupSheet(); };
+  }
+}
+
+// The last 3 words played (the whole list is under ☰ → Recent).
+function renderHist() {
+  const mv = (S.moves || []).slice(-3).reverse();
+  $('hist').innerHTML = mv.length ? mv.map(function (x) {
+    const p = S.players[x.p] || { name: '?' };
+    return '<div><span class="sw s' + x.p + '"></span>' + esc(p.name) + ': <b>' + esc(x.t) + '</b></div>';
+  }).join('') : '<div>No words yet.</div>';
+}
+
+function renderLobby() {
+  const L = $('lobby');
+  if (!S) {
+    L.innerHTML = '<div class="card"><h2>New game</h2><div class="small">Spell words through touching letters to paint the grid your color, and steal the other player\'s tiles by using them in your words. 2 players, each on their own phone.</div>' +
+      '<div class="small" style="margin-top:8px">Playing as <b>' + esc(myName()) + '</b>. Tap your avatar at the top right to change your name.</div>' +
+      '<button class="primary" id="bCreate" style="width:100%;margin-top:12px">Create game</button></div>';
+    $('bCreate').onclick = function () { newGame(myName()); };
+    return;
+  }
+  const m = me();
+  let h = '<div class="card"><h2>Lobby</h2>' + S.players.map(function (p, i) {
+    return '<div class="seat"><span>' + av(p) + esc(p.name) + (i === 0 ? ' <span class="small">(host)</span>' : '') + (i === m ? ' <span class="small">(you)</span>' : '') + '</span></div>';
+  }).join('') + '</div>';
+  if (m < 0 && S.players.length < MAX_SEATS) {
+    h += '<div class="card"><h2>Join</h2><div class="small">Joining as <b>' + esc(myName()) + '</b>. The game starts as soon as you join.</div><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+  } else if (m >= 0) {
+    h += '<div class="card small center">Waiting for the other player to join from their Letter Thief tab…</div>';
+  }
+  L.innerHTML = h;
+  if ($('bJoin')) $('bJoin').onclick = function () { join(myName()); };
+}
+
+function myName() { return lsGet('thief-name') || 'Player'; }   // the app login name (shim.js keeps it current)
+
+// ---------- sheets ----------
+function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+$('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
+
+function passSheet() {
+  const ends = (S.passes || 0) >= 1;
+  openSheet('<h3>Pass your turn?</h3><div class="small">' + (ends ? 'The other player just passed, so passing now <b>ends the game</b>.' : 'If the other player passes right after you, the game ends.') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button id="pNo" style="flex:1">Keep playing</button><button class="primary" id="pYes" style="flex:1">' + (ends ? 'Pass and end' : 'Pass') + '</button></div>');
+  $('pNo').onclick = closeSheet;
+  $('pYes').onclick = function () { closeSheet(); pass(); };
+}
+function setupSheet() {
+  openSheet('<h3>Start a new game</h3><div class="small">This replaces the current game in this tab for both of you. A new grid of letters is dealt.</div>' +
+    '<div class="row" style="margin-top:12px"><button id="nCancel" style="flex:1">Cancel</button><button class="primary" id="nGo" style="flex:2">Create game</button></div>');
+  $('nCancel').onclick = closeSheet;
+  $('nGo').onclick = function () { closeSheet(); newGame(myName()); };
+}
+function menuSheet() {
+  openSheet('<h3>Letter Thief</h3>' +
+    (window.GamesApp && GamesApp.winnersLog ? '<button id="mLog" style="width:100%;margin-bottom:10px">🏆 Winners\' Log</button>' : '') +
+    '<div class="card"><h2>How to play</h2><div class="small">On your turn, tap letters that touch (sideways, up and down, or diagonally) to spell a word of 3 or more letters. ' +
+    'Each tile can be used once per word. Tap the last letter again to take it back. A gold line shows the word you\'re tracing. ' +
+    '<b>Submit Turn</b> paints its tiles your color: <b>+' + CAPTURE + '</b> for each gray tile, <b>+' + STEAL + '</b> for each tile stolen from the other player (they lose ' + STOLEN + '), and nothing for tiles already yours. ' +
+    'Every word needs at least one tile that isn\'t yours, and a word can only be played once per game. ' +
+    'Long words earn a bonus: 5 letters +10, 6 letters +20, 7 or more +50. ' +
+    'The game ends when every tile is taken, or when both players pass in a row. Highest score wins. Blue is whoever started the game, Red joined it; who goes first is random.</div></div>' +
+    (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
+    (S && S.played && S.played.length ? '<div class="card"><h2>Words played</h2><div class="small">' + S.played.map(esc).join(', ') + '</div></div>' : '') +
+    '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
+    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +
+    '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
+    '<button id="mClose" style="width:100%">Close</button>');
+  if ($('mLog')) $('mLog').onclick = function () { closeSheet(); GamesApp.winnersLog('thief'); };
+  $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
+  if ($('mClose2')) $('mClose2').onclick = function () {
+    openSheet('<h3>Close this game?</h3><div class="small">It ends for both of you and the tab is freed. This can\'t be undone.</div>' +
+      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">Close game</button></div>');
+    $('cNo').onclick = closeSheet;
+    $('cYes').onclick = function () { closeSheet(); closeGame(); };
+  };
+  $('mClose').onclick = closeSheet;
+}
+$('menuBtn').onclick = menuSheet;
+
+function toast(t) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+function buzzIfMyTurn() {
+  const key = S && (S.gid + ':' + S.moveNo + ':' + S.status);
+  if (myTurn() && key !== lastTurnKey && lastTurnKey && navigator.vibrate) navigator.vibrate(120);
+  lastTurnKey = key || '';
+}
+
+// ---------- start ----------
+render();
+window.addEventListener('gamesprofiles', function () { if (S && window.GamesApp) GamesApp.fixNames(S.players); render(); });
+store.get(function (st, err) {
+  if (st !== undefined) apply(st);
+  else toast(/Unknown game/.test(String(err && err.message || err)) ? 'Letter Thief needs Games API 1.6. Player 1 has to update the Games API first.' : 'Could not load the game.');
+});
+loadWords();
+setInterval(poll, 4000);
+document.addEventListener('visibilitychange', poll);
+</script>
+</body>
+</html>

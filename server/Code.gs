@@ -1,4 +1,5 @@
-// Games API 1.5: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
+// Games API 1.6: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers, Garden,
+// Letter Thief and Cipher Strike.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Player 1's Drive.
 //
@@ -28,6 +29,14 @@ const GAMES = {
   garden: {
     file: 'garden-state', parent: '',                                                    // Games/Garden: made next to Tilework's folder the first time
     folder: '', strict: true, extra: []
+  },
+  thief: {
+    file: 'thief-state', parent: '', name: 'Letter Thief',                              // Games/Letter Thief, made like Garden's
+    folder: '', strict: true, extra: ['getWords']
+  },
+  cipher: {
+    file: 'cipher-state', parent: '', name: 'Cipher Strike',                            // Games/Cipher Strike, made like Garden's
+    folder: '', strict: true, extra: ['getWords']
   }
 };
 
@@ -45,7 +54,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.5', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.6', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -108,8 +117,8 @@ function folder_(game) {
   return f;
 }
 
-// The Games/<Game> folder. The first three have fixed IDs. Garden's is found (or made) next to them,
-// so its saves also live in Games/Garden/Save data.
+// The Games/<Game> folder. The first three have fixed IDs. The others are found (or made) next to them,
+// so Garden's saves live in Games/Garden/Save data, Letter Thief's in Games/Letter Thief/Save data, and so on.
 function parent_(game) {
   const g = GAMES[game];
   if (g.parent) return DriveApp.getFolderById(g.parent);
@@ -117,7 +126,7 @@ function parent_(game) {
   const id = props.getProperty(key);
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* look it up below */ } }
   const root = gamesRoot_();
-  const name = game.charAt(0).toUpperCase() + game.slice(1);
+  const name = g.name || game.charAt(0).toUpperCase() + game.slice(1);
   const it = root.getFoldersByName(name);
   const f = it.hasNext() ? it.next() : root.createFolder(name);
   props.setProperty(key, f.getId());
@@ -166,7 +175,10 @@ function summary_(game, s) {
   }
   const devs = s.players.map(function (p) { return p.dev; });
   let act = '';
-  if (game === 'wheelhouse') {
+  if (game === 'thief' || game === 'cipher') {
+    if (s.status === 'play') act = devs[s.turn] || '';
+    else if (s.status === 'setup') act = s.players.filter(function (p) { return !p.enc; }).map(function (p) { return p.dev; }).join(',');   // still picking a secret word
+  } else if (game === 'wheelhouse') {
     if (s.status === 'play') act = devs[s.turn] || '';
     else if (s.status === 'bonus' && s.bonus && s.bonus.stage !== 'done') act = devs[s.bonus.p] || '';
     else if (s.status === 'roundEnd') act = '*';
@@ -252,7 +264,7 @@ function closeGame_(game, slot, gid) {
 // made it. The key (game:gid) is checked under the save lock, so a game is never logged twice.
 // Games against the computer and pass-and-play games (one phone, no server) aren't logged.
 // Tallies are counted from the rows by the pages, so deleting a row takes that game out of the record.
-const LOG_GAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers' };
+const LOG_GAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', thief: 'Letter Thief', cipher: 'Cipher Strike' };
 const LOG_NAME = "Winners' Log";
 const LOG_HEAD = ['Key', 'Game', 'Finished', 'Tab', 'Player 1 id', 'Player 1 name', 'Player 1 score',
   'Player 2 id', 'Player 2 name', 'Player 2 score', 'Winner id (blank = tie)', 'How it ended', 'Moves', 'Extra'];
@@ -288,7 +300,7 @@ function result_(game, s) {
     if (!s.players || s.players.some(function (p) { return !p || !p.dev || p.dev === 'bot'; })) return null;   // vs the computer
     seats = s.players.map(function (p) { return { dev: p.dev, name: p.name || '', score: (game === 'wheelhouse' ? p.total : p.score) || 0 }; });
     moves = s.moves || (s.log || []).slice().reverse();   // .log is newest first and short
-    end = (s.log || [])[0] || '';
+    end = s.endNote || (s.log || [])[0] || '';
     extra = { rounds: s.settings && s.settings.rounds };
   }
   return seats.length === 2 ? { seats: seats, moves: moves, end: end, extra: extra } : null;
@@ -314,7 +326,7 @@ function getLog() {
   if (n < 1) return [];
   return sh.getRange(2, 1, n, 12).getValues().filter(function (r) { return r[0]; }).map(function (r) {
     const t = r[2] instanceof Date ? r[2].getTime() : Date.parse(r[2]) || 0;
-    return { key: String(r[0]), game: String(r[1]).toLowerCase(), t: t,
+    return { key: String(r[0]), game: String(r[0]).split(':')[0], t: t,   // the key is game:gid
              seats: [{ dev: String(r[4]), name: String(r[5]), score: Number(r[6]) || 0 },
                      { dev: String(r[7]), name: String(r[8]), score: Number(r[9]) || 0 }],
              win: String(r[10]), end: String(r[11]) };

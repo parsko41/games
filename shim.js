@@ -41,7 +41,9 @@
     tilework: ['tilework-id', 'tilework-name'],
     wheelhouse: ['wheelhouse-device', 'wheelhouse-name'],
     answers: ['answers-device', 'answers-name'],
-    garden: ['garden-device', 'garden-name']
+    garden: ['garden-device', 'garden-name'],
+    thief: ['thief-device', 'thief-name'],
+    cipher: ['cipher-device', 'cipher-name']
   };
   if (player && player.dev && KEYS[GAME]) {
     lsSet(KEYS[GAME][0], player.dev);
@@ -90,7 +92,7 @@
   // One sheet that slides up over the game, in the game's own colors. Opens on this game's record;
   // "All games" shows the grand tally. The rows come from the Games API (getLog); a game's moves
   // are fetched when you tap it (getLogGame). Wins are counted from the rows, newest first.
-  const LOG_TITLES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers' };
+  const LOG_TITLES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', thief: 'Letter Thief', cipher: 'Cipher Strike' };
   const LOG_CSS =
     '#wlVeil{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:60;color:var(--ink)}' +
     '#wlVeil .wl{background:var(--panel);width:100%;max-width:560px;box-sizing:border-box;border-radius:16px 16px 0 0;padding:14px 14px calc(env(safe-area-inset-bottom,0px) + 28px);max-height:88vh;overflow:auto}' +

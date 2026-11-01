@@ -21,7 +21,7 @@ self.addEventListener('fetch', function (e) {
 
 // ---------- turn alerts ----------
 // The app keeps {dev, api} in the "games-me" cache so this can ask the Games API what's waiting.
-const NAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', garden: 'Gardens' };
+const NAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', garden: 'Gardens', thief: 'Letter Thief', cipher: 'Cipher Strike' };
 function waiting() {
   return caches.open('games-me').then(function (c) { return c.match('me.json'); })
     .then(function (r) { return r ? r.json() : null; })
