@@ -21,12 +21,12 @@
   header #ver{font-size:11px;color:var(--dim);white-space:nowrap}
   header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:0}
 
-  /* tabs: just 1-5, evenly spread so all five fit without scrolling */
+  /* tabs: Game 1-5, evenly spread so all five fit without scrolling */
   #tabs{display:flex;gap:5px;flex:1;min-width:0}
-  #tabs button{flex:1 1 0;min-width:0;padding:7px 0;border-radius:10px;font-size:15px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
+  #tabs button{flex:1 1 0;min-width:0;padding:10px 0 4px;border-radius:10px;font-size:13px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
   #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
-  #tabs button .dot{position:absolute;top:4px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--ok)}
-  #tabs button .chk{font-size:11px;margin-left:2px}
+  #tabs button .dot{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{position:absolute;top:0;right:3px;font-size:10px}
   #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
 
   /* players */
@@ -130,6 +130,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.7', '2026-10-31', 'The game tabs say Game 1, Game 2 and so on, and the version beside the ☰ menu now reads v1.7. Same top bar as Tilework and Wheelhouse.'],
   ['1.6', '2026-10-30', 'Cleaner top bar: the Answers title is gone and the game tabs are just 1 to 5, spread evenly so all five fit without scrolling (a green dot is still your move, a check mark means the game is over). Hold a tab to see who it is against. Also: ☰ → End this game now always works, even in the middle of the computer\'s move (before, it could silently do nothing, and a failed attempt could leave the game stuck).'],
   ['1.5', '2026-10-15', 'No repeats in Built-in only games either. When every built-in category or final has been played in the last year, fresh online clues are used instead of repeating old ones (before, Built-in only games started repeating after about 3 games). Needs Games API 1.4.'],
   ['1.4', '2026-10-11', 'No repeated clues. The game now remembers every category, clue and final you\'ve played (both phones, all games) for a year and won\'t use them again. When the built-in clues run out, it uses fresh online clues instead, from two online sources now (more categories, like Food & Drink and Arts & Literature). Needs the new Games API (1.2).'],
@@ -303,7 +304,7 @@ function renderTabs() {
   if (GAMES.length) for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) { free = i; break; }
   $('tabs').innerHTML = used.map(function (i) {
     const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
-    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">Game ' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
   }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
 }
 $('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
@@ -701,7 +702,7 @@ let BOT_DELAY = 1200;
 
 // ---------- render ----------
 function render() {
-  $('ver').textContent = VERSIONS[0][0];
+  $('ver').textContent = 'v' + VERSIONS[0][0];
   renderTabs();
   if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); return; }
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');

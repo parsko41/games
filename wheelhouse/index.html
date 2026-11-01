@@ -51,12 +51,12 @@
   #msg .old{display:none}
   #msg .old{color:var(--dim);font-size:14px}
 
-  /* tabs: just 1-5, evenly spread so all five fit without scrolling */
+  /* tabs: Game 1-5, evenly spread so all five fit without scrolling */
   #tabs{display:flex;gap:5px;flex:1;min-width:0}
-  #tabs button{flex:1 1 0;min-width:0;padding:7px 0;border-radius:10px;font-size:15px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
+  #tabs button{flex:1 1 0;min-width:0;padding:10px 0 4px;border-radius:10px;font-size:13px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
   #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
-  #tabs button .dot{position:absolute;top:4px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--ok)}
-  #tabs button .chk{font-size:11px;margin-left:2px}
+  #tabs button .dot{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{position:absolute;top:0;right:3px;font-size:10px}
   #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
 
   /* the wheel, laid out as a horizontal strip of value bars */
@@ -147,6 +147,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.6', '2026-10-31', 'The game tabs say Game 1, Game 2 and so on, and the version beside the ☰ menu now reads v1.6. Same top bar as Tilework and Answers.'],
   ['1.5', '2026-10-30', 'Cleaner top bar: the Wheelhouse title is gone and the game tabs are just 1 to 5, spread evenly so all five fit without scrolling (a green dot is still your move, a check mark means the game is over). Hold a tab to see who it is against.'],
   ['1.4', '2026-10-15', 'No repeated puzzles. Every puzzle used (built-in or online, both phones, all games) is remembered with the date, and none is used again for a year. When the built-in puzzles run out, fresh online ones are used instead, even in Built-in only games. Needs Games API 1.4.'],
   ['1.3', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
@@ -551,7 +552,7 @@ function renderTabs() {
   const free = GAMES.length ? (function () { for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) return i; return -1; })() : -1;
   $('tabs').innerHTML = used.map(function (i) {
     const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
-    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">Game ' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
   }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
 }
 $('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
@@ -848,7 +849,7 @@ window.addEventListener('resize', function () { if (!spinning) placeStrip(false)
 
 // ---------- render ----------
 function render() {
-  $('ver').textContent = VERSIONS[0][0];
+  $('ver').textContent = 'v' + VERSIONS[0][0];
   renderTabs();
   if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); $('sub').textContent = S ? 'Lobby' : ''; return; }
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');

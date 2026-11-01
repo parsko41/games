@@ -1,5 +1,10 @@
 # Games app: changelog
 
+## Same top bar everywhere (2026-10-31): Tilework 1.4, Wheelhouse 1.6, Answers 1.7
+- All three games now have the same top bar: the game tabs, then the version, then ☰. Tilework's ☰ moved up from the score row to sit beside its tabs (the ⤢ fit button stays by the scores).
+- Game tabs say **Game 1**, **Game 2** and so on in every game. A small ✓ in the corner means the game is over and a green dot means it's your move. Holding a tab still shows who it's against.
+- The version now reads **v1.4** / **v1.6** / **v1.7** beside the ☰, so it can't be mistaken for a game number. Tilework's version moved there from under the bag count.
+
 ## Shorter stalemate (2026-10-31): Tilework 1.3
 - The game ends after **two** scoreless turns in a row (one pass or swap each), instead of six (three each). The Pass confirmation warns when passing would end the game. Leftover tiles are still subtracted.
 
