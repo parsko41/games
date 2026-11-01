@@ -1,5 +1,14 @@
 # Games app: changelog
 
+## Shorter stalemate (2026-10-31): Tilework 1.3
+- The game ends after **two** scoreless turns in a row (one pass or swap each), instead of six (three each). The Pass confirmation warns when passing would end the game. Leftover tiles are still subtracted.
+
+## Tabs, End game, March (2026-10-30): Wheelhouse 1.5, Answers 1.6, Tilework 1.2
+- **Wheelhouse and Answers:** the title banner is gone. The top bar is now just the game tabs, numbered 1 to 5 and spread evenly so all five fit without scrolling, then the version and ☰. A green dot is still your move, ✓ means the game is over, and holding a tab shows who it's against.
+- **Answers:** ☰ → **End this game** now always works. Before, it silently did nothing whenever the computer was mid-move, and a failed attempt could leave the game stuck busy. It now waits out any save in progress and stops the computer first.
+- **Tilework, Play style: March.** New Game has a Play style section: Free play, or March right / left / up / down. After the first word, every new tile must be in the front line (the furthest line already reached that way) or beyond. Squares behind it are dimmed and the front line has a dashed outline. Saved as `rules.march` ('E','W','N','S') in the game, so old games are unaffected.
+- **Tilework hand:** the word using the blue tile is outlined red; any other real words in the hand (not using the blue tile) get green outlines.
+
 ## No repeats for a year, both games (2026-10-15): Wheelhouse 1.4, Answers 1.5, Games API 1.4
 - **Wheelhouse** had no memory across games: each game picked from the 256 built-in puzzles at random and online puzzles were never tracked, so repeats came up quickly. Now every puzzle used (built-in, online, and the bonus round; both phones, every game) is stamped with the day it was used, and nothing used in the last 365 days comes up again. When the built-ins are all used, puzzles come from online (Wikipedia's most-read articles), even in "Built-in only" games.
 - **Answers** already had a year of history (1.4), but "Built-in only" games went back to old categories once the 36 built-in categories were used (about 3 games), and the final repeated once the 16 built-in finals were used if The Trivia API didn't answer. Now both switch to fresh online clues instead (the final also tries Open Trivia DB).
