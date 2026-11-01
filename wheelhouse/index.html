@@ -18,10 +18,9 @@
   button.go{background:var(--ok);color:#04210f;font-weight:700}
   input,select{font:inherit;color:var(--ink);background:#0c1124;border:1px solid #34407a;border-radius:10px;padding:11px 12px;width:100%}
   #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
-  header{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:34px}
-  header h1{font-size:19px;margin:0;letter-spacing:.3px;color:var(--gold);white-space:nowrap}
-  header h1 small{font-size:12px;color:var(--dim);font-weight:400;margin-left:3px}
-  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:auto}
+  header{display:flex;align-items:center;gap:6px;margin-bottom:6px;min-height:36px}
+  header #ver{font-size:11px;color:var(--dim);white-space:nowrap}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:0}
 
   /* board */
   #board{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;padding:8px;background:#0b3d28;border-radius:12px;border:3px solid #2a5;box-shadow:0 0 0 3px #0b3d28 inset}
@@ -52,13 +51,13 @@
   #msg .old{display:none}
   #msg .old{color:var(--dim);font-size:14px}
 
-  /* tabs */
-  #tabs{display:flex;gap:5px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
-  #tabs::-webkit-scrollbar{display:none}
-  #tabs button{flex:0 0 auto;padding:5px 10px;border-radius:999px;font-size:15px;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap}
+  /* tabs: just 1-5, evenly spread so all five fit without scrolling */
+  #tabs{display:flex;gap:5px;flex:1;min-width:0}
+  #tabs button{flex:1 1 0;min-width:0;padding:7px 0;border-radius:10px;font-size:15px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
   #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
-  #tabs button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
-  #tabs button.add{font-weight:800;color:var(--gold)}
+  #tabs button .dot{position:absolute;top:4px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{font-size:11px;margin-left:2px}
+  #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
 
   /* the wheel, laid out as a horizontal strip of value bars */
   #stripWrap{position:relative;height:var(--sh,66px);overflow:hidden;border-radius:12px;background:#0b1020;border:2px solid #2a3566;margin:0 0 6px}
@@ -124,8 +123,8 @@
 <body>
 <div id="app">
   <header>
-    <h1>Wheelhouse<small id="ver"></small></h1>
     <div id="tabs"></div>
+    <small id="ver"></small>
     <button id="menuBtn" aria-label="Menu">☰</button>
   </header>
   <div id="lobby"></div>
@@ -148,6 +147,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.5', '2026-10-30', 'Cleaner top bar: the Wheelhouse title is gone and the game tabs are just 1 to 5, spread evenly so all five fit without scrolling (a green dot is still your move, a check mark means the game is over). Hold a tab to see who it is against.'],
   ['1.4', '2026-10-15', 'No repeated puzzles. Every puzzle used (built-in or online, both phones, all games) is remembered with the date, and none is used again for a year. When the built-in puzzles run out, fresh online ones are used instead, even in Built-in only games. Needs Games API 1.4.'],
   ['1.3', '2026-10-11', 'Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right.'],
   ['1.2', '2026-10-11', 'The clue under the puzzle is twice as big.'],
@@ -543,16 +543,15 @@ function tabInfo(g) {
   const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
   const label = mine ? 'vs ' + others.join(' & ') : g.names.join(' & ');
   const dot = mine && (g.act === DEV || g.act === '*');
-  return { label: (g.status === 'over' ? '✓ ' : '') + label, dot: dot };
+  return { label: label, dot: dot, over: g.status === 'over' };
 }
 function renderTabs() {
   const used = [];
   for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
   const free = GAMES.length ? (function () { for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) return i; return -1; })() : -1;
-  if (used.length <= 1 && !GAMES[curSlot]) { $('tabs').innerHTML = ''; return; }
   $('tabs').innerHTML = used.map(function (i) {
     const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
-    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '">' + esc(t.label) + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
   }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
 }
 $('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };

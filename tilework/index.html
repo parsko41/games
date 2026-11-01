@@ -12,7 +12,7 @@
   --bg:#E6ECEF; --ink:#1B2430; --muted:#5A6874; --panel:#F4F7F9; --line:#C3CFD7;
   --cell:#D2DCE3; --tile:#FBF7EF; --tile-edge:#C4B08C; --tile-ink:#1B2430;
   --pend:#FFE3A1; --pend-edge:#D9A93B; --last:#FFF3D1; --slot:#DCE4EA;
-  --anchor:#D6E6F8; --anchor-edge:#5C8FCC; --word:#2E9E5B; --word-glow:rgba(46,158,91,.22); --W:560px;
+  --anchor:#D6E6F8; --anchor-edge:#5C8FCC; --word:#2E9E5B; --word-glow:rgba(46,158,91,.22); --hit:#D64545; --hit-glow:rgba(214,69,69,.22); --W:560px;
   --tw:#E4572E; --dw:#F0B429; --tl:#2F6DB5; --dl:#86C9E4; --dl-ink:#12384A;
   --accent:#2F6DB5; --accent-ink:#fff; --bad:#C2372B; --good:#2E7D4F;
   --font:"Bricolage Grotesque", ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -23,13 +23,13 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#1E2A35; --ink:#EEF3F6; --muted:#AEBBC5; --panel:#283745; --line:#3F5263; --slot:#314352;
-    --cell:#35495A; --last:#FFE9B0; --accent:#7FB0F0; --accent-ink:#0E1620; --word:#5FD48E; --word-glow:rgba(95,212,142,.25);
+    --cell:#35495A; --last:#FFE9B0; --accent:#7FB0F0; --accent-ink:#0E1620; --word:#5FD48E; --word-glow:rgba(95,212,142,.25); --hit:#FF7B7B; --hit-glow:rgba(255,123,123,.25);
     --dl:#4E93B4; --tl:#3F76C2; --dw:#D29E2A; --tw:#D2583A; --dl-ink:#F2F9FC;
   }
 }
 :root[data-theme="dark"]{
   --bg:#1E2A35; --ink:#EEF3F6; --muted:#AEBBC5; --panel:#283745; --line:#3F5263; --slot:#314352;
-  --cell:#35495A; --last:#FFE9B0; --accent:#7FB0F0; --accent-ink:#0E1620; --word:#5FD48E; --word-glow:rgba(95,212,142,.25);
+  --cell:#35495A; --last:#FFE9B0; --accent:#7FB0F0; --accent-ink:#0E1620; --word:#5FD48E; --word-glow:rgba(95,212,142,.25); --hit:#FF7B7B; --hit-glow:rgba(255,123,123,.25);
   --dl:#4E93B4; --tl:#3F76C2; --dw:#D29E2A; --tw:#D2583A; --dl-ink:#F2F9FC;
 }
 @media (min-width:700px){:root{--W:min(860px, max(560px, calc((100vh - 240px) / 1.26)))}}
@@ -102,6 +102,9 @@ input{-webkit-user-select:text;user-select:text}
 .link{border:0;background:none;color:var(--accent);font-weight:600;font-size:.88rem;padding:4px 2px;cursor:pointer}
 .rack{position:relative}
 .wordbox{position:absolute;pointer-events:none;border:3px solid var(--word);border-radius:12px;box-shadow:0 0 0 3px var(--word-glow);z-index:3;transition:left .12s,width .12s}
+.wordbox.blue{border-color:var(--hit);box-shadow:0 0 0 3px var(--hit-glow);z-index:4}
+.cell.nogo{opacity:.45}
+.cell.front{outline:2px dashed var(--accent);outline-offset:-2px}
 .row7.rack{grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
 .rack .htile{font-size:min(6.6vw,1.8rem)}
 .htile.anchor{opacity:1;background:var(--anchor);box-shadow:inset 0 -4px 0 var(--anchor-edge),inset 0 0 0 2px var(--anchor-edge)}
@@ -187,6 +190,7 @@ input{-webkit-user-select:text;user-select:text}
   <h2>New game</h2>
   <div class="sub">Board</div><div class="opts" id="boardOpts"></div>
   <div class="sub">Letter values</div><div class="opts" id="valOpts"></div>
+  <div class="sub">Play style</div><div class="opts" id="marchOpts"></div>
   <div class="stack"><button class="btn primary wide" id="setupGo">Start game</button><button class="btn wide" id="setupCancel">Cancel</button></div>
 </div></div>
 <div class="veil" id="confirmVeil"><div class="sheet">
@@ -208,6 +212,8 @@ input{-webkit-user-select:text;user-select:text}
 const N=15;
 let CENTER=112;
 const VERSIONS=[
+  ["1.3","The game now ends after two scoreless turns in a row (one pass or swap each), down from six. The Pass confirmation warns you when passing would end the game."],
+  ["1.2","New game option, Play style: March. Pick a direction (right, left, up or down) and every new tile has to go in the front line or further that way, so the board fills in a staircase toward the edge, like song, then go down, then ogre across. Squares behind the front line are dimmed on the board. Free play is still the default. Also in your hand: the word with the blue tile is now outlined in red, and any other real words in your hand (not using the blue tile) get a green outline."],
   ["1.1","Your Games login name is your name in every game, even games already going. Change it any time by tapping your avatar at the top right."],
   ["1.0","Part of the Games app: one player and avatar for all three games (picked once per phone), and the first player is chosen at random. Same game otherwise."],
   ["v12","Much bigger word list: Collins Scrabble Words 2021 plus the 2023 North American list, about 280,000 words (ZEN, QI, ZA and friends are in). If a word still isn’t in the list, tap Play a second time to play it anyway."],
@@ -332,10 +338,22 @@ function randomFair(){
   }
   return best;
 }
+/* ---- Play style: March. Every new tile has to sit in the front line (the furthest line already
+   reached in the chosen direction) or beyond it, so the board fills in toward one edge. ---- */
+const MARCH={
+  E:{name:"right",arrow:"➡",p:i=>i%15},
+  W:{name:"left",arrow:"⬅",p:i=>14-i%15},
+  S:{name:"down",arrow:"⬇",p:i=>Math.floor(i/15)},
+  N:{name:"up",arrow:"⬆",p:i=>14-Math.floor(i/15)}
+};
+function marchOf(st){const m=st&&st.rules&&st.rules.march;return m&&MARCH[m]?MARCH[m]:null;}
+function marchFront(st,mr){let f=-1;for(let i=0;i<225;i++)if(st.board[i]!==".")f=Math.max(f,mr.p(i));return f;}
 function resolveRules(choice){
   const bd=BOARDS.find(b=>b.id===(choice&&choice.board))||BOARDS[0];
   const vs=VALUE_SETS.find(v=>v.id===(choice&&choice.values))||VALUE_SETS[0];
-  return {rules:{board:bd.id,boardName:bd.name,values:vs.id,valuesName:vs.name},layout:buildLayout(bd),
+  const rules={board:bd.id,boardName:bd.name,values:vs.id,valuesName:vs.name};
+  if(choice&&choice.march&&MARCH[choice.march])rules.march=choice.march;
+  return {rules:rules,layout:buildLayout(bd),
           vals:Object.assign({},vs.random==='shuffle'?randomShuffle():vs.random?randomFair():vs.values)};
 }
 const CLASSIC_LAYOUT=buildLayout(BOARDS[0]); // fallback for games saved before v10 (the Tilework board)
@@ -347,7 +365,7 @@ function applyRules(st){
   Object.assign(VAL,vals);
   if(lay!==LAYOUT){LAYOUT=lay;CENTER=lay.indexOf("*");if(CENTER<0)CENTER=112;if(typeof decorateBoard==="function")decorateBoard();}
 }
-function rulesLabel(st){const r=st&&st.rules;return r?(r.boardName||"Tilework")+" board · "+(r.valuesName||"Classic")+" values":"Tilework board · Classic values";}
+function rulesLabel(st){const r=st&&st.rules;const mr=marchOf(st);const base=r?(r.boardName||"Tilework")+" board · "+(r.valuesName||"Classic")+" values":"Tilework board · Classic values";return base+(mr?" · March "+mr.arrow:"");}
 const $=id=>document.getElementById(id);
 
 /* ---------- dictionary ---------- */
@@ -557,6 +575,8 @@ function evaluate(){
   for(let i=idxs[0];i<=idxs[idxs.length-1];i+=step)if(!at(i))return {err:"Tiles need to connect with no gaps."};
   const empty=!/[^.]/.test(board);
   if(empty&&!pend.has(CENTER))return {err:"The first word has to cover the ★."};
+  const mr=marchOf(state);
+  if(mr&&!empty){const f=marchFront(state,mr);if(idxs.some(i=>mr.p(i)<f))return {err:"March rule: new tiles go in the front line or further "+mr.name+" "+mr.arrow+" (the dashed squares and beyond)."};}
   const words=[];const main=wordAt(idxs[0],horiz,at);if(main.cells.length>=2)words.push(main);
   for(const i of idxs){const w=wordAt(i,!horiz,at);if(w.cells.length>=2)words.push(w);}
   if(!words.length)return {err:empty?"Words need at least two letters.":"Your tiles need to connect to a word on the board."};
@@ -580,10 +600,11 @@ function evaluate(){
 /* ---------- actions ---------- */
 const myTurn=()=>state&&state.status==="active"&&me>=0&&state.turn===me;
 
+const STUCK_AFTER=2;   // scoreless turns in a row (passes or swaps) that end the game: one each
 function finishOut(st,p){const o=1-p;const pts=rackValue(st.racks[o]);st.scores[p]+=pts;st.scores[o]-=pts;
   st.status="over";st.endNote=nameFor(st,p)+" went out and picked up "+pts+" from the other rack.";}
 function finishStuck(st){st.scores[0]-=rackValue(st.racks[0]);st.scores[1]-=rackValue(st.racks[1]);
-  st.status="over";st.endNote="Six scoreless turns in a row, so the game ended. Leftover tiles were subtracted.";}
+  st.status="over";st.endNote="Two scoreless turns in a row (a pass or swap each), so the game ended. Leftover tiles were subtracted.";}
 function nameFor(st,p){return (st.names&&st.names[p])||"Player "+(p+1);}
 function logPush(st,p,t){st.log=(st.log||[]).concat([{p,t}]).slice(-40);}
 
@@ -611,9 +632,9 @@ function doPlay(){
 }
 function doPass(){
   if(!myTurn())return;
-  confirmBox("Pass this turn?","You’ll score nothing and it becomes the other player’s turn.","Pass",()=>{
+  confirmBox("Pass this turn?",((state.scoreless||0)+1>=STUCK_AFTER?"The last turn was scoreless too, so passing now ends the game. ":"")+"You’ll score nothing and it becomes the other player’s turn.","Pass",()=>{
     commit(st=>{st.scoreless=(st.scoreless||0)+1;logPush(st,me,"passed");st.lastCells=[];
-      if(st.scoreless>=6)finishStuck(st);else st.turn=1-me;return st;});
+      if(st.scoreless>=STUCK_AFTER)finishStuck(st);else st.turn=1-me;return st;});
   });
 }
 function doSwap(){
@@ -627,7 +648,7 @@ function doSwap(){
   commit(st=>{let r=st.racks[me];for(const l of out){const k=r.indexOf(l);if(k<0)return null;r=r.slice(0,k)+r.slice(k+1);}
     let got;[got,st.bag]=draw(st.bag,out.length);st.bag+=out.join("");st.racks[me]=r+got;
     st.scoreless=(st.scoreless||0)+1;logPush(st,me,"swapped "+out.length+" tile"+(out.length>1?"s":""));st.lastCells=[];
-    if(st.scoreless>=6)finishStuck(st);else st.turn=1-me;return st;});
+    if(st.scoreless>=STUCK_AFTER)finishStuck(st);else st.turn=1-me;return st;});
   msg=null;
 }
 function recall(){pend.clear();sel=null;}
@@ -939,6 +960,13 @@ function valPreview(vs){
   if(vs.random)return "Different every game";
   return ["A","E","K","J","Q","Z"].map(l=>l+vs.values[l]).join(" · ");
 }
+const PLAY_STYLES=[
+  {id:"",name:"Free play",desc:"Play anywhere, like always."},
+  {id:"E",name:"March ➡ right",desc:"Every new tile goes in the front line or further right."},
+  {id:"W",name:"March ⬅ left",desc:"Every new tile goes in the front line or further left."},
+  {id:"N",name:"March ⬆ up",desc:"Every new tile goes in the front line or further up."},
+  {id:"S",name:"March ⬇ down",desc:"Every new tile goes in the front line or further down."}
+];
 function renderSetup(){
   const bo=$("boardOpts");bo.innerHTML="";
   for(const bd of BOARDS){const b=document.createElement("button");b.className="opt"+(setupChoice.board===bd.id?" on":"");
@@ -950,6 +978,10 @@ function renderSetup(){
     const t=document.createElement("b");t.textContent=vs.name;const p=document.createElement("span");p.className="valrow";p.textContent=valPreview(vs);
     const d=document.createElement("small");d.textContent=vs.desc;b.append(t,p,d);
     b.onclick=()=>{setupChoice.values=vs.id;renderSetup();};vo.appendChild(b);}
+  const mo=$("marchOpts");mo.innerHTML="";
+  for(const ps of PLAY_STYLES){const b=document.createElement("button");b.className="opt"+((setupChoice.march||"")===ps.id?" on":"");
+    const t=document.createElement("b");t.textContent=ps.name;const d=document.createElement("small");d.textContent=ps.desc;b.append(t,d);
+    b.onclick=()=>{setupChoice.march=ps.id;renderSetup();};mo.appendChild(b);}
 }
 function openSetup(cb){setupCb=cb;renderSetup();$("setupVeil").classList.add("on");}
 $("setupGo").onclick=()=>{$("setupVeil").classList.remove("on");try{localStorage.setItem("tilework-setup",JSON.stringify(setupChoice));}catch(e){}
@@ -1078,15 +1110,47 @@ function findHandWord(){
   }
   return best;
 }
+function findOtherWords(blue){
+  // Real words in the hand that don't use the blue tile (and don't overlap the blue tile's word).
+  // Tiles that touch are read left to right; the longest word in each stretch is boxed, then the
+  // leftover tiles on either side are searched the same way.
+  if(!DICT||DICT==="off"||swapMode)return [];
+  const live=i=>{const t=hand[POS[i]];return t&&!onBoard(t.id)?t:null;};
+  const taken=POS.map(()=>false);
+  POS.forEach((p,i)=>{const t=live(i);if(t&&t.id===ANCHOR)taken[i]=true;});
+  if(blue)for(let i=blue.start;i<blue.start+blue.len;i++)taken[i]=true;
+  const letter=i=>live(i).l;
+  const out=[];
+  function scan(lo,hi){
+    if(hi-lo<1)return;
+    for(let n=hi-lo+1;n>=2;n--)for(let i=lo;i+n-1<=hi;i++){
+      const L=[];for(let k=i;k<i+n;k++)L.push(letter(k));
+      if(isWordWild(L)){out.push({start:i,len:n,word:L.join("")});scan(lo,i-1);scan(i+n,hi);return;}
+    }
+  }
+  let i=0;
+  while(i<POS.length){
+    if(live(i)&&!taken[i]){let j=i;while(j+1<POS.length&&live(j+1)&&!taken[j+1])j++;scan(i,j);i=j+1;}else i++;
+  }
+  return out.sort((x,y)=>x.start-y.start);
+}
 function placeWordBox(){
-  const rk=$("rack");let box=rk.querySelector(".wordbox");
-  const w=$("bottom").style.visibility==="hidden"?null:findHandWord();
-  if(!w){if(box)box.remove();rk.removeAttribute("aria-description");return;}
-  if(!box){box=document.createElement("div");box.className="wordbox";rk.appendChild(box);}
-  const a=rk.children[w.start],b=rk.children[w.start+w.len-1];
-  box.style.left=(a.offsetLeft-5)+"px";box.style.top=(a.offsetTop-5)+"px";
-  box.style.width=(b.offsetLeft+b.offsetWidth-a.offsetLeft+10)+"px";box.style.height=(a.offsetHeight+10)+"px";
-  rk.setAttribute("aria-description","Word with the blue tile: "+w.word);
+  const rk=$("rack");
+  const hidden=$("bottom").style.visibility==="hidden";
+  const blue=hidden?null:findHandWord();
+  const others=hidden?[]:findOtherWords(blue);
+  const list=(blue?[{w:blue,kind:"blue"}]:[]).concat(others.map(w=>({w,kind:""})));
+  let boxes=[...rk.querySelectorAll(".wordbox")];
+  while(boxes.length>list.length)boxes.pop().remove();
+  while(boxes.length<list.length){const b=document.createElement("div");rk.appendChild(b);boxes.push(b);}
+  list.forEach((it,k)=>{
+    const box=boxes[k];box.className="wordbox"+(it.kind?" "+it.kind:"");
+    const a=rk.children[it.w.start],b=rk.children[it.w.start+it.w.len-1];
+    box.style.left=(a.offsetLeft-5)+"px";box.style.top=(a.offsetTop-5)+"px";
+    box.style.width=(b.offsetLeft+b.offsetWidth-a.offsetLeft+10)+"px";box.style.height=(a.offsetHeight+10)+"px";
+  });
+  if(!list.length){rk.removeAttribute("aria-description");return;}
+  rk.setAttribute("aria-description",(blue?"Word with the blue tile: "+blue.word+". ":"")+(others.length?"Other words: "+others.map(w=>w.word).join(", "):""));
 }
 function renderSlots(container,positions,rows){
   container.innerHTML="";
@@ -1154,6 +1218,7 @@ function render(){
 
   // board
   const last=new Set(state.lastCells||[]);
+  const mr=marchOf(state),mf=mr?marchFront(state,mr):-1,mrk=!!mr&&mf>=0&&state.status!=="over";
   for(let i=0;i<225;i++){
     const el=cellEls[i];const ch=state.board[i];let tile=null;
     if(ch!==".")tile={l:ch.toUpperCase(),blank:ch!==ch.toUpperCase(),cls:last.has(i)?"last":""};
@@ -1163,6 +1228,9 @@ function render(){
       if(!tile.blank){const v=document.createElement("span");v.className="v";v.textContent=VAL[tile.l];t.appendChild(v);}el.appendChild(t);
       el.setAttribute("aria-label",tile.l);}
     else{el.textContent=i===CENTER?"":(el.dataset.pr||"");el.setAttribute("aria-label",premium(i)||"empty");}
+    const empty=ch==="."&&!pend.has(i);
+    el.classList.toggle("nogo",!!(mrk&&empty&&mr.p(i)<mf));
+    el.classList.toggle("front",!!(mrk&&empty&&mr.p(i)===mf));
   }
 
   // hand
@@ -1191,7 +1259,7 @@ function render(){
     else html='<span class="good">'+esc(ev.words.map(w=>w.text).join(", "))+' · '+ev.total+' points</span>';}
   else if(!mine)html='<span><span class="dim">Waiting for '+esc(nameOf(state.turn))+'.</span>'+lastLine()+'</span>';
   else if(sel!==null)html='<span class="dim">Tap a square to place it, or drag the tile where you want it.</span>';
-  else html=!/[^.]/.test(state.board)?'<span class="dim">Your move. The first word goes through the ★.</span>':'<span><span class="dim">Your move.</span>'+lastLine()+'</span>';
+  else html=!/[^.]/.test(state.board)?'<span class="dim">Your move. The first word goes through the ★'+(mr?'. This game marches '+mr.name+' '+mr.arrow:'')+'.</span>':'<span><span class="dim">Your move'+(mr?' (march '+mr.name+' '+mr.arrow+')':'')+'.</span>'+lastLine()+'</span>';
   $("status").innerHTML=html;
   renderLog();
 }

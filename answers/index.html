@@ -17,18 +17,17 @@
   button.go{background:var(--ok);color:#04210f;font-weight:700}
   input,select{font:inherit;font-size:16px;color:var(--ink);background:#080b22;border:1px solid #34407a;border-radius:10px;padding:11px 12px;width:100%}
   #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
-  header{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:34px}
-  header h1{font-size:19px;margin:0;letter-spacing:.3px;color:var(--gold);white-space:nowrap}
-  header h1 small{font-size:12px;color:var(--dim);font-weight:400;margin-left:3px}
-  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:auto}
+  header{display:flex;align-items:center;gap:6px;margin-bottom:6px;min-height:36px}
+  header #ver{font-size:11px;color:var(--dim);white-space:nowrap}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:0}
 
-  /* tabs */
-  #tabs{display:flex;gap:5px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
-  #tabs::-webkit-scrollbar{display:none}
-  #tabs button{flex:0 0 auto;padding:5px 10px;border-radius:999px;font-size:15px;background:var(--panel);color:var(--dim);white-space:nowrap}
+  /* tabs: just 1-5, evenly spread so all five fit without scrolling */
+  #tabs{display:flex;gap:5px;flex:1;min-width:0}
+  #tabs button{flex:1 1 0;min-width:0;padding:7px 0;border-radius:10px;font-size:15px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
   #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
-  #tabs button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
-  #tabs button.add{font-weight:800;color:var(--gold)}
+  #tabs button .dot{position:absolute;top:4px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{font-size:11px;margin-left:2px}
+  #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
 
   /* players */
   #players{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:6px;margin-bottom:6px}
@@ -111,8 +110,8 @@
 <body>
 <div id="app">
   <header>
-    <h1>Answers<small id="ver"></small></h1>
     <div id="tabs"></div>
+    <small id="ver"></small>
     <button id="menuBtn" aria-label="Menu">☰</button>
   </header>
   <div id="lobby"></div>
@@ -131,6 +130,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.6', '2026-10-30', 'Cleaner top bar: the Answers title is gone and the game tabs are just 1 to 5, spread evenly so all five fit without scrolling (a green dot is still your move, a check mark means the game is over). Hold a tab to see who it is against. Also: ☰ → End this game now always works, even in the middle of the computer\'s move (before, it could silently do nothing, and a failed attempt could leave the game stuck).'],
   ['1.5', '2026-10-15', 'No repeats in Built-in only games either. When every built-in category or final has been played in the last year, fresh online clues are used instead of repeating old ones (before, Built-in only games started repeating after about 3 games). Needs Games API 1.4.'],
   ['1.4', '2026-10-11', 'No repeated clues. The game now remembers every category, clue and final you\'ve played (both phones, all games) for a year and won\'t use them again. When the built-in clues run out, it uses fresh online clues instead, from two online sources now (more categories, like Food & Drink and Arts & Literature). Needs the new Games API (1.2).'],
   ['1.3', '2026-10-11', 'Much bigger text under the clue (the last move and your instructions) and on the buttons and answer box, a little bigger again on wider phones. The money line is shorter: Right +$400 · Wrong −$400.'],
@@ -466,10 +466,10 @@ const store = {
       .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
       .saveState(JSON.stringify(hide(ns)), slot);
   },
-  close: function (gid, cb) {
+  close: function (gid, cb, fail) {
     const slot = curSlot;
-    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
-      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else { renderTabs(); if (fail) fail(); } })
+      .withFailureHandler(function (e) { toast('Could not end the game: ' + (e && e.message || e)); if (fail) fail(); }).closeGame(slot, gid);
   },
   online: function (n, avoid, cb) {
     google.script.run.withSuccessHandler(function (r) { cb(r || []); }).withFailureHandler(function () { cb([]); }).getOnlineCategories(n, avoid);
@@ -524,17 +524,16 @@ function tabInfo(g) {
   const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
   const label = mine ? (others.length ? 'vs ' + others.join(' & ') : 'Solo') : g.names.join(' & ');
   const dot = mine && (g.act === '*' || String(g.act || '').split(',').indexOf(DEV) >= 0);
-  return { label: (g.status === 'over' ? '✓ ' : '') + label, dot: dot };
+  return { label: label, dot: dot, over: g.status === 'over' };
 }
 function renderTabs() {
   const used = [];
   for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
   let free = -1;
   if (GAMES.length) for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) { free = i; break; }
-  if (used.length <= 1 && !GAMES[curSlot]) { $('tabs').innerHTML = ''; return; }
   $('tabs').innerHTML = used.map(function (i) {
-    const t = tabInfo(GAMES[i]);
-    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '">' + esc(t.label) + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+    const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
   }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
 }
 $('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
@@ -689,10 +688,18 @@ function newGame(nm, settings) {
     final: null, usedCats: [], usedFinals: [], log: [nm + (BOT_LEVELS[settings.opp] ? ' started a game against the computer (' + BOT_LEVELS[settings.opp].label.toLowerCase() + ').' : ' started a new game.')]
   });
 }
+let closing = false;       // ending the game: the computer must not move meanwhile
 function closeGame() {
-  if (!S || busy) return;
-  busy = true; render();
-  store.close(S.gid, function (st) { busy = false; apply(st); toast('Game closed. This tab is free.'); });
+  if (!S || closing) return;
+  closing = true;
+  clearTimeout(botTimer); botKey = '';
+  (function go(tries) {
+    if (!S) { closing = false; return; }
+    if (busy && tries < 25) { setTimeout(function () { go(tries + 1); }, 300); return; }   // wait out a save in progress
+    busy = true; render();
+    store.close(S.gid, function (st) { busy = false; closing = false; apply(st); toast('Game ended. This tab is free.'); },
+      function () { busy = false; closing = false; render(); });
+  })(0);
 }
 function rematch() {
   const ns = next();
@@ -870,7 +877,7 @@ function wrongGuess(c, r) {      // a plausible miss: another answer from the sa
 }
 let botTimer = null, botKey = '';
 function botTick() {
-  if (!S || busy || botSeat() < 0 || me() !== 0) return;   // only the host's phone plays for the computer
+  if (!S || busy || closing || botSeat() < 0 || me() !== 0) return;   // only the host's phone plays for the computer
   const b = botSeat(), L = botLevel();
   let fn = null;
   if (S.status === 'pick' && S.control === b) {
@@ -1175,13 +1182,13 @@ function menuSheet() {
     'In the <b>final</b>, everyone above $0 secretly wagers, then answers one clue. Pick <b>Computer</b> as the opponent for a solo game; easy misses a lot, hard rarely does. Categories marked • are online clues. Clues and categories you\'ve played aren\'t used again for a year.</div></div>' +
     (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
     '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
-    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +
+    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">End this game</button>' : '') +
     '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
     '<button id="mClose" style="width:100%">Close</button>');
   $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
   if ($('mClose2')) $('mClose2').onclick = function () {
-    openSheet('<h3>Close this game?</h3><div class="small">It ends for everyone and the tab is freed. This can\'t be undone.</div>' +
-      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">Close game</button></div>');
+    openSheet('<h3>End this game?</h3><div class="small">It ends for everyone and the tab is freed. This can\'t be undone.</div>' +
+      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">End game</button></div>');
     $('cNo').onclick = closeSheet;
     $('cYes').onclick = function () { closeSheet(); closeGame(); };
   };
