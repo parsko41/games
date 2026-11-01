@@ -1,5 +1,8 @@
 # Games app: changelog
 
+## Whole board button (2026-10-31): Tilework 1.5
+- The ⤢ button (zoom back out to the whole board) is gone from the score row, where it sat even when there was nothing to zoom out from. Now a **Whole board** button appears in the corner of the board only while you are zoomed in (by pinching or double-tapping); tap it to see the whole board again. Double-tapping still zooms out too.
+
 ## Same top bar everywhere (2026-10-31): Tilework 1.4, Wheelhouse 1.6, Answers 1.7
 - All three games now have the same top bar: the game tabs, then the version, then ☰. Tilework's ☰ moved up from the score row to sit beside its tabs (the ⤢ fit button stays by the scores).
 - Game tabs say **Game 1**, **Game 2** and so on in every game. A small ✓ in the corner means the game is over and a green dot means it's your move. Holding a tab still shows who it's against.
