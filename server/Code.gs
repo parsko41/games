@@ -1,4 +1,4 @@
-// Games API 1.4: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
+// Games API 1.5: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers and Garden.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Player 1's Drive.
 //
@@ -45,7 +45,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.4', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.5', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -58,6 +58,8 @@ function dispatch_(game, fn, args, who) {
     if (fn === 'setPush') return setPush(args[0], args[1]);
     if (fn === 'clearPush') return clearPush(args[0], args[1]);
     if (fn === 'testPush') return testPush(args[0]);
+    if (fn === 'getLog') return getLog();
+    if (fn === 'getLogGame') return getLogGame(args[0]);
     throw new Error('Unknown call: ' + fn);
   }
   const g = GAMES[game];
@@ -88,6 +90,7 @@ function setup() {
     for (let s = 0; s < MAX_GAMES; s++) writeSummary_(game, s, readState_(stateFile_(f, game, s)));
     Logger.log(game + ' saves: ' + f.getUrl());
   });
+  Logger.log("Winners' Log: " + logSheet_().getParent().getUrl());
   Logger.log('Word list: ' + (getWords().length ? 'found' : 'missing (run buildWords)'));
   Logger.log('Online puzzle test: ' + JSON.stringify(trendingPuzzle_({})));
 }
@@ -113,14 +116,18 @@ function parent_(game) {
   const props = PropertiesService.getScriptProperties(), key = 'PARENT_' + game;
   const id = props.getProperty(key);
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* look it up below */ } }
-  let root = null;
-  try { const up = DriveApp.getFolderById(GAMES.tilework.parent).getParents(); if (up.hasNext()) root = up.next(); } catch (e) { root = null; }
-  if (!root) root = DriveApp.getRootFolder();
+  const root = gamesRoot_();
   const name = game.charAt(0).toUpperCase() + game.slice(1);
   const it = root.getFoldersByName(name);
   const f = it.hasNext() ? it.next() : root.createFolder(name);
   props.setProperty(key, f.getId());
   return f;
+}
+
+// The Games folder itself (the one that holds Games/Tilework), or My Drive if it can't be found.
+function gamesRoot_() {
+  try { const up = DriveApp.getFolderById(GAMES.tilework.parent).getParents(); if (up.hasNext()) return up.next(); } catch (e) { /* fall through */ }
+  return DriveApp.getRootFolder();
 }
 
 // The garden's day number, same as dayIndex() in garden/index.html (rolls over at 3 AM Pacific).
@@ -218,6 +225,7 @@ function saveState_(game, json, slot) {
     if (!ok) return { ok: false, state: cur, games: games_(game) };
     file.setContent(json);
     writeSummary_(game, slot, next);
+    try { logResult_(game, slot, next); } catch (e) { console.warn("Winners' Log: " + e); }   // the log never breaks a save
     return { ok: true, state: next, games: games_(game) };
   } finally {
     lock.releaseLock();
@@ -236,6 +244,91 @@ function closeGame_(game, slot, gid) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------- Winners' Log ----------
+// Every finished 2-player game becomes one row of the "Winners' Log" sheet in the Games folder.
+// It's written here, when the save that finishes the game arrives, so it doesn't matter which phone
+// made it. The key (game:gid) is checked under the save lock, so a game is never logged twice.
+// Games against the computer and pass-and-play games (one phone, no server) aren't logged.
+// Tallies are counted from the rows by the pages, so deleting a row takes that game out of the record.
+const LOG_GAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers' };
+const LOG_NAME = "Winners' Log";
+const LOG_HEAD = ['Key', 'Game', 'Finished', 'Tab', 'Player 1 id', 'Player 1 name', 'Player 1 score',
+  'Player 2 id', 'Player 2 name', 'Player 2 score', 'Winner id (blank = tie)', 'How it ended', 'Moves', 'Extra'];
+const LOG_CELL_MAX = 49000;   // a sheet cell holds 50,000 characters
+
+function logSheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('LOG_SHEET');
+  if (id) { try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (e) { /* make a new one below */ } }
+  const ss = SpreadsheetApp.create(LOG_NAME);
+  try { DriveApp.getFileById(ss.getId()).moveTo(gamesRoot_()); } catch (e) { /* stays in My Drive */ }
+  const sh = ss.getSheets()[0];
+  sh.setName('Log');
+  sh.appendRow(LOG_HEAD);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, LOG_HEAD.length).setFontWeight('bold');
+  ['A:A', 'E:F', 'H:I', 'K:L'].forEach(function (a) { sh.getRange(a).setNumberFormat('@'); });   // ids and names stay text
+  props.setProperty('LOG_SHEET', ss.getId());
+  return sh;
+}
+
+// The two seats of a finished game as [{dev, name, score}], plus how it ended, the moves and extras.
+// null = not a game for the log.
+function result_(game, s) {
+  let seats, moves, end, extra;
+  if (game === 'tilework') {
+    if (!s.players || s.players.some(function (d) { return !d || /^local/.test(d); })) return null;   // pass and play
+    seats = s.players.map(function (d, i) { return { dev: d, name: (s.names || [])[i] || '', score: (s.scores || [])[i] || 0 }; });
+    moves = s.moves || s.log || [];              // oldest first; .log only holds the last 40
+    end = s.endNote || '';
+    extra = { rules: s.rules || null, board: s.board };
+  } else {
+    if (!s.players || s.players.some(function (p) { return !p || !p.dev || p.dev === 'bot'; })) return null;   // vs the computer
+    seats = s.players.map(function (p) { return { dev: p.dev, name: p.name || '', score: (game === 'wheelhouse' ? p.total : p.score) || 0 }; });
+    moves = s.moves || (s.log || []).slice().reverse();   // .log is newest first and short
+    end = (s.log || [])[0] || '';
+    extra = { rounds: s.settings && s.settings.rounds };
+  }
+  return seats.length === 2 ? { seats: seats, moves: moves, end: end, extra: extra } : null;
+}
+
+function logResult_(game, slot, s) {
+  if (!LOG_GAMES[game] || !s || s.status !== 'over' || !s.gid) return;
+  const r = result_(game, s);
+  if (!r) return;
+  const key = game + ':' + s.gid, sh = logSheet_();
+  if (sh.getRange('A:A').createTextFinder(key).matchEntireCell(true).findNext()) return;   // already logged
+  const a = r.seats[0], b = r.seats[1];
+  const win = a.score === b.score ? '' : (a.score > b.score ? a.dev : b.dev);
+  let moves = r.moves, mj = JSON.stringify(moves);
+  while (mj.length > LOG_CELL_MAX && moves.length) { moves = moves.slice(Math.ceil(moves.length / 10)); mj = JSON.stringify(moves); }
+  sh.appendRow([key, LOG_GAMES[game], new Date(), slot_(slot) + 1, a.dev, a.name, a.score, b.dev, b.name, b.score,
+    win, r.end, mj, JSON.stringify(r.extra).slice(0, LOG_CELL_MAX)]);
+}
+
+// Every logged game, newest first, without moves: [{key, game, t, seats: [{dev, name, score}], win, end}].
+function getLog() {
+  const sh = logSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  return sh.getRange(2, 1, n, 12).getValues().filter(function (r) { return r[0]; }).map(function (r) {
+    const t = r[2] instanceof Date ? r[2].getTime() : Date.parse(r[2]) || 0;
+    return { key: String(r[0]), game: String(r[1]).toLowerCase(), t: t,
+             seats: [{ dev: String(r[4]), name: String(r[5]), score: Number(r[6]) || 0 },
+                     { dev: String(r[7]), name: String(r[8]), score: Number(r[9]) || 0 }],
+             win: String(r[10]), end: String(r[11]) };
+  }).reverse();
+}
+
+// One game's moves and extras, for the detail view.
+function getLogGame(key) {
+  const sh = logSheet_();
+  const hit = sh.getRange('A:A').createTextFinder(String(key)).matchEntireCell(true).findNext();
+  if (!hit) return null;
+  const r = sh.getRange(hit.getRow(), 13, 1, 2).getValues()[0];
+  const parse = function (v) { try { return JSON.parse(v || 'null'); } catch (e) { return null; } };
+  return { moves: parse(r[0]) || [], extra: parse(r[1]) };
 }
 
 // ---------- players (one login for every game) ----------

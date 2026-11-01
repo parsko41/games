@@ -185,6 +185,7 @@ input{-webkit-user-select:text;user-select:text}
 
 <div class="veil" id="blankVeil"><div class="sheet"><h2 id="blankTitle">Pick a letter for the blank</h2><div class="letters" id="letters"></div></div></div>
 <div class="veil" id="menuVeil"><div class="sheet">
+  <button class="btn wide" id="logBtn" style="margin-bottom:14px">🏆 Winners’ Log</button>
   <h2>This game</h2><div id="rulesInfo" class="rulesinfo"></div>
   <h2>Moves</h2><ul class="log" id="log"></ul>
   <h2>Version history</h2><ul class="changes" id="changes"></ul>
@@ -220,6 +221,7 @@ input{-webkit-user-select:text;user-select:text}
 const N=15;
 let CENTER=112;
 const VERSIONS=[
+  ["1.6","New: ☰ → Winners’ Log. Every finished game between the two of you is recorded once (both scores, the winner, every move), with your win–loss–tie record for Tilework, and All games for the grand tally. Pass-and-play games on one phone aren’t counted. Needs Games API 1.5."],
   ["1.5","The ⤢ button is gone from the score row. When you zoom in on the board (pinch or double-tap), a Whole board button appears in the board’s corner to zoom back out."],
   ["1.4","Same top bar as Wheelhouse and Answers: the game tabs say Game 1, Game 2 and so on, with the version (v1.4) and the ☰ menu beside them. Hold a tab to see who it is against."],
   ["1.3","The game now ends after two scoreless turns in a row (one pass or swap each), down from six. The Pass confirmation warns you when passing would end the game."],
@@ -616,7 +618,8 @@ function finishOut(st,p){const o=1-p;const pts=rackValue(st.racks[o]);st.scores[
 function finishStuck(st){st.scores[0]-=rackValue(st.racks[0]);st.scores[1]-=rackValue(st.racks[1]);
   st.status="over";st.endNote="Two scoreless turns in a row (a pass or swap each), so the game ended. Leftover tiles were subtracted.";}
 function nameFor(st,p){return (st.names&&st.names[p])||"Player "+(p+1);}
-function logPush(st,p,t){st.log=(st.log||[]).concat([{p,t}]).slice(-40);}
+function logPush(st,p,t,c){st.log=(st.log||[]).concat([{p,t}]).slice(-40);
+  st.moves=(st.moves||[]).concat([c?{p,t,c}:{p,t}]);}   // every move, for the Winners' Log; c = [[square, letter], ...] placed (blank = lowercase)
 
 function doPlay(){
   if(!myTurn()||busy)return;
@@ -634,7 +637,7 @@ function doPlay(){
     for(const [i,p] of placed){b[i]=p.blank?p.ch.toLowerCase():p.ch;const src=p.blank?"?":p.ch;const k=r.indexOf(src);if(k<0)return null;r=r.slice(0,k)+r.slice(k+1);}
     let got;[got,st.bag]=draw(st.bag,7-r.length);r+=got;
     st.board=b.join("");st.racks[me]=r;st.scores[me]+=ev.total;st.scoreless=0;st.lastCells=ev.idxs;
-    logPush(st,me,ev.words.map(w=>w.text).join(", ")+" for "+ev.total+(ev.bingo?" (all 7 tiles, +50)":""));
+    logPush(st,me,ev.words.map(w=>w.text).join(", ")+" for "+ev.total+(ev.bingo?" (all 7 tiles, +50)":""),placed.map(([i,p])=>[i,p.blank?p.ch.toLowerCase():p.ch]));
     if(!r.length&&!st.bag.length)finishOut(st,me);else st.turn=1-me;
     return st;
   });
@@ -1289,6 +1292,8 @@ $("closeGameBtn").onclick=()=>{$("menuVeil").classList.remove("on");
   confirmBox("Close this game?","It ends the game for both of you and frees up the tab. It can’t be undone.","Yes, close it",closeThisGame);};
 $("menuBtn").onclick=()=>{renderLog();renderRules();$("closeGameBtn").hidden=!state;$("newBtn").disabled=busy||mode==="loading";$("menuVeil").classList.add("on");};
 $("closeMenu").onclick=()=>$("menuVeil").classList.remove("on");
+$("logBtn").hidden=!(window.GamesApp&&GamesApp.winnersLog);
+$("logBtn").onclick=()=>{$("menuVeil").classList.remove("on");GamesApp.winnersLog("tilework");};
 $("menuVeil").addEventListener("click",e=>{if(e.target.id==="menuVeil")$("menuVeil").classList.remove("on");});
 $("newBtn").onclick=()=>{$("menuVeil").classList.remove("on");
   openSetup(()=>{

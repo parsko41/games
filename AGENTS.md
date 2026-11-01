@@ -23,6 +23,12 @@ Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`
 - `server/Code.gs` is the **Games API**, a Google Apps Script web app in Player 1's Google account.
   It stores every game as a JSON file in Player 1's Google Drive (`Games/<Game>/Save data`), keeps the
   player list (`PROFILES`) and turn summaries in Script Properties, and fetches online clues.
+- **Winners' Log:** the Games API writes one row per finished 2-player game (not vs the computer,
+  not pass-and-play) to the "Winners' Log" sheet in the Games folder, inside `saveState_`, keyed
+  `game:gid` so it's never logged twice (`logResult_`, `getLog`, `getLogGame` in `server/Code.gs`).
+  The screen is `GamesApp.winnersLog(game)` in `shim.js`; each game's ☰ just calls it. Tallies are
+  counted from the rows by player id. Tilework keeps every move in a `moves` field for the log
+  (without one, the server falls back to the game's short `log`).
 - `sw.js` makes the app installable, forces a fresh copy of every file on each open, and shows
   turn alerts (Web Push from the Games API; see the "Turn alerts" entry in `CHANGELOG.md`).
 - `test/` has a local fake server (runs the real Code.gs with a pretend Drive) and an end-to-end
