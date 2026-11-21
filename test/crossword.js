@@ -92,28 +92,49 @@ async function until(fn, ms, label) {
   const solvedIdx = s1.by.map((b, i) => b >= 0 ? i : -1).filter(i => i >= 0);
   check(solvedIdx.includes(target.i) && s1.by[target.i] === who, 'word is claimed by the player who solved it');
   const pts = solvedIdx.reduce((t, i) => t + 10 * answers[i].length, 0);
-  check(s1.scores[who] === pts && s1.scores[1 - who] === 0 && s1.turn === 1 - who, 'scored 10 a letter (' + pts + ') and the turn passed: ' + JSON.stringify(s1.scores));
-  check(await fO.evaluate(() => myTurn()), 'other player now has the turn');
-  await O.screenshot({ path: path.join(shots, 'crossword-after-solve.png') });
+  check(s1.scores[who] === pts && s1.scores[1 - who] === 0 && s1.turn === who, 'scored 10 a letter (' + pts + ') and the solver goes again: ' + JSON.stringify(s1.scores));
+  check(await fT.evaluate(() => myTurn() && S.chain === 1) && !(await fO.evaluate(() => myTurn())), 'solver still has the turn (word 1 of 3); the other player does not');
+  await T.screenshot({ path: path.join(shots, 'crossword-after-solve.png') });
+  // the solver passes; now it is the other player's turn and the chain is reset
+  await fT.evaluate(() => pass());
+  await until(() => fO.evaluate(() => S.moveNo === 3), 10000, 'pass saved');
+  check(await fO.evaluate(() => myTurn() && S.chain === 0), 'after a pass the other player has the turn and the streak is reset');
   const raw2 = cwFile().content, st2 = JSON.parse(raw2);
   check(st2.entries.every(e => e.enc && e.ans === undefined) && st2.entries.every((e, i) => e.by >= 0 || answers[i].length < 5 || !raw2.includes(answers[i])), 'still no plain-text answers after a move (solved words show on the board, the rest stay scrambled)');
 
-  // ---------- a wrong guess just passes the turn ----------
+  // ---------- a wrong guess passes the turn and costs 5 a square ----------
   const wrong = await fO.evaluate(() => { const o = openEntries(); const i = o[0]; selectEntry(i); const e = S.entries[i]; return { i, n: blanksOf(e).length }; });
   for (let k = 0; k < wrong.n; k++) await fO.click('#kbd button[data-k="Q"]');
   await fO.click('#bGuess');
-  await until(() => fT.evaluate(() => S.moveNo === 3), 10000, 'wrong guess saved');
+  await until(() => fT.evaluate(() => S.moveNo === 4), 10000, 'wrong guess saved');
+  const pen = 5 * wrong.n;
   const s2 = await fT.evaluate(() => ({ turn: S.turn, scores: S.players.map(p => p.score), idle: S.idle, log: S.log[0] }));
-  check(s2.turn === who && s2.idle === 1 && s2.scores[1 - who] === 0 && /missed/.test(s2.log), 'wrong guess: no points, turn passes back: ' + s2.log);
+  check(s2.turn === who && s2.scores[1 - who] === -pen && s2.scores[who] === pts + pen && /missed/.test(s2.log), 'wrong guess: -5 a square (-' + pen + ') and the other player gets +' + pen + ', turn passes back: ' + s2.log);
 
-  // ---------- reveal ----------
-  const rv = await fT.evaluate(() => { const o = openEntries().filter(i => blanksOf(S.entries[i]).length >= 2); selectEntry(o[0]); return { i: o[0], before: S.known.replace(/ /g, '').length, sc: S.players[S.turn].score }; });
-  await fT.click('#bReveal');
-  await until(() => fT.isVisible('#rYes'), 3000, 'reveal confirmation');
+  // ---------- hint: tap Hint, then a square; costs 20, ends the turn ----------
+  const rv = await fT.evaluate(() => {
+    const ok = [], bad = [];
+    for (let i = 0; i < S.mask.length; i++) { if (S.mask[i] === '#' || S.known[i] !== ' ') continue; (hintable(i) ? ok : bad).push(i); }
+    return { ok, bad, before: S.known.replace(/ /g, '').length, sc: S.players[S.turn].score };
+  });
+  check(rv.ok.length > 0, 'there are squares a hint can go on');
+  // a square that would finish a word can never be hinted (even by calling hintLetter directly)
+  if (rv.bad.length) {
+    const b0 = await fT.evaluate((i) => { hintLetter(i); return S.known.replace(/ /g, '').length + ':' + S.moveNo; }, rv.bad[0]);
+    check(b0 === rv.before + ':4', 'a square that would finish a word is refused');
+  } else console.log('NOTE no word-finishing square in this puzzle to test the refusal');
+  check(!(await fT.isDisabled('#bHint')), 'Hint button is on when you have 20 or more points');
+  await fT.click('#bHint');
+  await fT.click('.cx[data-i="' + rv.ok[0] + '"]');
+  await until(() => fT.isVisible('#rYes'), 3000, 'hint confirmation');
   await fT.click('#rYes');
-  await until(() => fO.evaluate(() => S.moveNo === 4), 10000, 'reveal saved');
-  const s3 = await fO.evaluate(() => ({ filled: S.known.replace(/ /g, '').length, sc: S.players[1 - S.turn].score, turn: S.turn, by: S.entries.map(e => e.by) }));
-  check(s3.filled > rv.before && s3.sc <= rv.sc - 10 + 1000 && s3.turn === 1 - who, 'reveal adds a letter and ends the turn');
+  await until(() => fO.evaluate(() => S.moveNo === 5), 10000, 'hint saved');
+  const s3 = await fO.evaluate(() => ({ filled: S.known.replace(/ /g, '').length, sc: S.players.map(p => p.score), turn: S.turn }));
+  check(s3.filled === rv.before + 1 && s3.sc[who] === rv.sc - 20 && s3.turn === 1 - who, 'hint adds one letter, costs 20 (' + rv.sc + ' -> ' + s3.sc[who] + ') and ends the turn');
+  // the other player is below 20 points: no Hint, and hintLetter refuses
+  check(await fO.isDisabled('#bHint'), 'Hint button is off when you have under 20 points');
+  const noGo = await fO.evaluate((i) => { const before = S.moveNo; hintLetter(i); return S.moveNo === before && S.players[me()].score < 20; }, rv.ok[1] !== undefined ? rv.ok[1] : rv.ok[0]);
+  check(noGo, 'hintLetter does nothing when you cannot afford it, so a hint never makes your score go lower');
 
   // ---------- invariants + play to the end ----------
   async function invariant(f) {
@@ -134,7 +155,7 @@ async function until(fn, ms, label) {
   }
   await until(() => fA.evaluate(() => S.status === 'over'), 10000, 'game over');
   const fin = await fA.evaluate(() => ({ sc: S.players.map(p => p.score), note: S.endNote, by: S.entries.map(e => e.by), total: S.entries.reduce((t, e) => t + e.len * 10, 0) }));
-  check(fin.by.every(b => b >= 0) && fin.sc[0] + fin.sc[1] === fin.total - 10 && /solved/.test(fin.note), 'game ends when every word is claimed; points add up (' + fin.sc.join(' + ') + ' = ' + fin.total + ' - the 10 for the reveal): ' + fin.note);
+  check(fin.by.every(b => b >= 0) && fin.sc[0] + fin.sc[1] === fin.total - 20 && /solved/.test(fin.note), 'game ends when every word is claimed; points add up (' + fin.sc.join(' + ') + ' = ' + fin.total + ' - 20 for the hint; the wrong guess just moves ' + pen + ' between players): ' + fin.note);
   await A.screenshot({ path: path.join(shots, 'crossword-over.png') });
 
   // ---------- Winners' Log ----------

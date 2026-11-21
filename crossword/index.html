@@ -60,6 +60,7 @@
   .cx.inw{background:#fff1b8}
   .cx.o0.inw{background:#6c9bff}
   .cx.o1.inw{background:#f0777b}
+  .cx.hp{box-shadow:inset 0 0 0 3px var(--gold);background:#ffe9a3}
   .cx.cur{box-shadow:inset 0 0 0 3px var(--gold)}
   .cx.dr{color:#b45309;font-style:italic}
   .cx.miss{color:#7b83a6;background:#c4c9dc}
@@ -135,11 +136,13 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.2', '2026-11-21', 'Hot streaks and steals. A right guess lets you go again, up to 3 words in a row (words finished by crossing letters don\'t count toward the 3). A wrong guess, a Hint or a Pass ends your turn. And a wrong guess now hands the other player the penalty: you lose 5 a square you typed and they gain 5 a square.'],
+  ['1.1', '2026-11-21', 'More competitive scoring. A wrong guess now costs 5 points for every square you typed. Reveal became Hint: tap Hint, then tap any empty square and its letter is filled in for 20 points (you need at least 20 to use it, and your turn ends). A Hint can\'t go on a square that would finish a word, so you can\'t buy a crossing word for 20.'],
   ['1.0', '2026-11-20', 'First version, replacing Gardens: a crossword for two. A grid is built from a bank of about 5,000 clues (pick Small, Medium or Large), and no word or clue is ever used twice, in any game. On your turn pick a clue and type the answer: a right answer claims the word for 10 points a letter, and any other word it finishes is yours too. A wrong guess just passes the turn. Reveal a letter (-10) if you are stuck. Up to 5 games at once, saved on Drive like the other games.']
 ];
 
 // ---------- rules ----------
-const MAX_SEATS = 2, PER_LETTER = 10, REVEAL_COST = 10, IDLE_END = 6;
+const MAX_SEATS = 2, PER_LETTER = 10, HINT_COST = 20, WRONG_PER_LETTER = 5, CHAIN_MAX = 3, IDLE_END = 6;
 // Grid sizes: the biggest square the words are packed into, how many words to aim for, and the longest word allowed.
 const SIZES = {
   small:  { label: 'Small',  n: 9,  words: 8,  maxLen: 9 },
@@ -184,6 +187,7 @@ if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('crosswor
 let S = null;            // current game state (from server)
 let busy = false;        // waiting on a save
 let selE = -1;           // index of the clue being worked on (local only)
+let hintMode = false;    // picking a square to reveal (local only)
 let draft = '';          // letters typed into that clue's empty squares (local only)
 let lastTurnKey = '';
 const MAX_GAMES = 5;
@@ -555,11 +559,13 @@ function claimFinished(ns, m) {
 }
 
 // End a turn: either the game is over (everything claimed, or too many turns with nothing claimed), or it's the other player's.
-function endTurn(ns, claimed) {
+// keep: the player just solved a word, so they go again unless that was their CHAIN_MAX-th in a row.
+function endTurn(ns, claimed, keep) {
   ns.idle = claimed ? 0 : (ns.idle || 0) + 1;
-  if (ns.entries.every(function (e) { return e.by >= 0; })) finish(ns, 'Every word is solved.');
-  else if (ns.idle >= IDLE_END) finish(ns, IDLE_END + ' turns in a row without a new word.');
-  else ns.turn = 1 - ns.turn;
+  if (ns.entries.every(function (e) { return e.by >= 0; })) { ns.chain = 0; finish(ns, 'Every word is solved.'); }
+  else if (ns.idle >= IDLE_END) { ns.chain = 0; finish(ns, IDLE_END + ' turns in a row without a new word.'); }
+  else if (keep && (ns.chain || 0) < CHAIN_MAX) { /* same player goes again */ }
+  else { ns.chain = 0; ns.turn = 1 - ns.turn; }
 }
 
 function typedWord(e) {      // the entry's letters with the typed ones filled in (blank squares only)
@@ -583,32 +589,49 @@ function guess() {
     const also = got.filter(function (x) { return x !== ne; });
     addLog(ns, p.name + ' solved ' + lab(ne) + ' (' + w + ') for ' + PER_LETTER * ne.len + '.');
     also.forEach(function (x) { addLog(ns, '…which also finished ' + lab(x) + ' (' + x.ans + '), +' + PER_LETTER * x.len + '.'); });
+    ns.chain = (ns.chain || 0) + 1;
     ns.moves = (ns.moves || []).concat([{ p: m, t: lab(ne) + ' ' + w + ' +' + pts + (also.length ? ' (also ' + also.map(function (x) { return lab(x); }).join(', ') + ')' : ''), c: placed }]);
-    endTurn(ns, true);
+    endTurn(ns, true, true);
   } else {
-    addLog(ns, p.name + ' guessed ' + lab(ne) + ' and missed.');
-    ns.moves = (ns.moves || []).concat([{ p: m, t: 'Missed ' + lab(ne) }]);
+    const pen = WRONG_PER_LETTER * blanks.length, rival = ns.players[1 - m];
+    p.score -= pen;
+    if (rival) rival.score += pen;                                  // the other player gets what you lose
+    addLog(ns, p.name + ' guessed ' + lab(ne) + ' and missed (-' + pen + (rival ? ', +' + pen + ' to ' + rival.name : '') + ').');
+    ns.moves = (ns.moves || []).concat([{ p: m, t: 'Missed ' + lab(ne) + ' -' + pen + (rival ? ' (+' + pen + ' to ' + rival.name + ')' : '') }]);
     endTurn(ns, false);
   }
   draft = '';
   commit(ns);
 }
-function revealLetter() {
-  if (!myTurn() || busy || selE < 0) return;
-  const e = S.entries[selE];
-  const blanks = blanksOf(e);
-  if (e.by >= 0 || blanks.length < 2) return;
-  const ns = next(), m = ns.turn, p = ns.players[m], ne = ns.entries[selE];
-  const i = blanks[Math.floor(Math.random() * blanks.length)];
-  const ch = e.ans[cellsOf(S, e).indexOf(i)];
+// A square can be hinted if it is empty, belongs to an unsolved word, and no word through it would be finished by it.
+function hintable(i) {
+  if (!S || S.known[i] !== ' ' || S.mask[i] === '#') return false;
+  let any = false;
+  for (let k = 0; k < S.entries.length; k++) {
+    const e = S.entries[k];
+    if (e.by >= 0 || cellsOf(S, e).indexOf(i) < 0) continue;
+    if (blanksOf(e).length < 2) return false;
+    any = true;
+  }
+  return any;
+}
+function canHint() {
+  if (!myTurn() || me() < 0 || S.players[me()].score < HINT_COST) return false;
+  for (let i = 0; i < S.mask.length; i++) if (hintable(i)) return true;
+  return false;
+}
+function hintLetter(i) {
+  if (!myTurn() || busy || !hintable(i)) return;
+  const ns = next(), m = ns.turn, p = ns.players[m];
+  if (p.score < HINT_COST) return;                       // never below zero by hinting
+  const ent = S.entries.filter(function (e) { return e.by < 0 && cellsOf(S, e).indexOf(i) >= 0; })[0];
+  const ch = ent.ans[cellsOf(S, ent).indexOf(i)];
   setKnown(ns, i, ch);
-  p.score -= REVEAL_COST;
-  const got = claimFinished(ns, m);
-  const pts = got.reduce(function (t, x) { return t + PER_LETTER * x.len; }, 0);
-  addLog(ns, p.name + ' revealed a letter in ' + lab(ne) + ' (-' + REVEAL_COST + ').');
-  got.forEach(function (x) { addLog(ns, '…which finished ' + lab(x) + ' (' + x.ans + '), +' + PER_LETTER * x.len + ' for ' + p.name + '.'); });
-  ns.moves = (ns.moves || []).concat([{ p: m, t: 'Revealed a letter in ' + lab(ne) + ' -' + REVEAL_COST + (got.length ? ', finished ' + got.map(function (x) { return lab(x); }).join(', ') + ' +' + pts : ''), c: [i] }]);
-  endTurn(ns, got.length > 0);
+  p.score -= HINT_COST;
+  addLog(ns, p.name + ' bought a hint in ' + lab(ent) + ' (-' + HINT_COST + ').');
+  ns.moves = (ns.moves || []).concat([{ p: m, t: 'Hint in ' + lab(ent) + ' -' + HINT_COST, c: [i] }]);
+  endTurn(ns, false);
+  hintMode = false;
   draft = '';
   commit(ns);
 }
@@ -640,6 +663,11 @@ $('bNext').onclick = function () { if (S && S.entries) step(1); };
 
 function tapCell(i) {
   if (!S || !isOpen(i)) return;
+  if (hintMode) {
+    if (!myTurn() || busy) { hintMode = false; return renderGame(); }
+    if (!hintable(i)) return toast(S.known[i] !== ' ' ? 'Pick an empty square.' : 'That letter would finish a word. Pick another square.');
+    return hintSheet(i);
+  }
   const cover = [];
   S.entries.forEach(function (e, k) { if (cellsOf(S, e).indexOf(i) >= 0) cover.push(k); });
   if (!cover.length) return;
@@ -679,6 +707,7 @@ function render(fresh) {
   renderGame(fresh);
 }
 function renderGame(fresh) {
+  if (hintMode && (!myTurn() || busy)) hintMode = false;
   renderPlayers(); renderClue(); renderKbd(); renderActions(); renderStatus(); renderGrid(fresh);
 }
 
@@ -744,6 +773,7 @@ function renderGrid(fresh) {
     if (k === ' ' && draftAt[i]) cls += ' dr';
     if (k === ' ' && !draftAt[i] && solution[i]) { ch = solution[i]; cls += ' miss'; }
     if (selCells.indexOf(i) >= 0) cls += ' inw';
+    if (hintMode && hintable(i)) cls += ' hp';
     if (typing && i === cur) cls += ' cur';
     h += '<div class="' + cls + '" data-i="' + i + '">' + (nums[i] ? '<span class="n">' + nums[i] + '</span>' : '') + esc(ch) + '</div>';
   }
@@ -776,10 +806,10 @@ function renderActions() {
   if (S.status === 'play') {
     const mine = myTurn(), e = selE >= 0 ? S.entries[selE] : null, open = mine && e && e.by < 0;
     const nb = open ? blanksOf(e).length : 0;
-    a.innerHTML = '<button class="rv" id="bReveal"' + (open && nb >= 2 ? dis : ' disabled') + '>Reveal −' + REVEAL_COST + '</button>' +
+    a.innerHTML = '<button class="rv" id="bHint"' + (hintMode ? ' disabled' : (canHint() ? dis : ' disabled')) + '>Hint −' + HINT_COST + '</button>' +
       '<button id="bPass"' + (mine ? dis : ' disabled') + '>Pass</button>' +
       '<button class="primary" id="bGuess"' + (open && draft.length === nb && nb > 0 ? dis : ' disabled') + '>Guess</button>';
-    $('bReveal').onclick = revealSheet;
+    $('bHint').onclick = function () { hintMode = true; draft = ''; renderGame(); toast('Tap an empty square to reveal it.'); };
     $('bPass').onclick = passSheet;
     $('bGuess').onclick = guess;
     return;
@@ -798,7 +828,7 @@ function renderStatus() {
   el.className = '';
   const mv = (S.moves || [])[(S.moves || []).length - 1];
   const last = mv ? ' · ' + esc((S.players[mv.p] || { name: '?' }).name) + ': ' + esc(mv.t) : '';
-  const lead = me() < 0 ? 'You\'re watching' : myTurn() ? '<b class="me">Your turn</b>' : 'Waiting for <b>' + esc(name(S.turn)) + '</b>';
+  const lead = me() < 0 ? 'You\'re watching' : myTurn() ? '<b class="me">Your turn</b>' + ((S.chain || 0) > 0 ? ' (word ' + ((S.chain || 0) + 1) + ' of ' + CHAIN_MAX + ' in a row)' : '') : 'Waiting for <b>' + esc(name(S.turn)) + '</b>';
   el.innerHTML = lead + ' · ' + left + ' left' + last;
 }
 
@@ -812,7 +842,7 @@ function lastSize() { const s = lsGet('crossword-size'); return SIZES[s] ? s : '
 function renderLobby() {
   const L = $('lobby');
   if (!S) {
-    L.innerHTML = '<div class="card"><h2>New game</h2><div class="small">A crossword for two, each on their own phone. Take turns picking a clue and typing the answer: a right answer claims the word (10 points a letter), a wrong one passes the turn. Most points wins.</div>' +
+    L.innerHTML = '<div class="card"><h2>New game</h2><div class="small">A crossword for two, each on their own phone. Take turns picking a clue and typing the answer: a right answer claims the word (10 points a letter) and lets you go again, up to 3 words in a row. A wrong one costs you 5 points a square, which go to the other player, and passes the turn. Most points wins.</div>' +
       '<div class="small" style="margin:12px 0 6px">Size</div>' + sizePicker('cSize', lastSize()) +
       '<div class="small" style="margin-top:8px">Playing as <b>' + esc(myName()) + '</b>. Tap your avatar at the top right to change your name.</div>' +
       '<button class="primary" id="bCreate" style="width:100%;margin-top:12px"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Building…' : 'Create game') + '</button></div>';
@@ -862,12 +892,12 @@ function passSheet() {
   $('pNo').onclick = closeSheet;
   $('pYes').onclick = function () { closeSheet(); pass(); };
 }
-function revealSheet() {
-  const e = S.entries[selE];
-  openSheet('<h3>Reveal a letter?</h3><div class="small">One random empty square in <b>' + lab(e) + '</b> is filled in for <b>−' + REVEAL_COST + '</b> points, and your turn ends. The letter helps the other player too, and if it finishes any other word, that word is yours.</div>' +
-    '<div class="row" style="margin-top:12px"><button id="rNo" style="flex:1">Never mind</button><button class="primary" id="rYes" style="flex:1">Reveal</button></div>');
-  $('rNo').onclick = closeSheet;
-  $('rYes').onclick = function () { closeSheet(); revealLetter(); };
+function hintSheet(i) {
+  const ents = S.entries.filter(function (e) { return e.by < 0 && cellsOf(S, e).indexOf(i) >= 0; });
+  openSheet('<h3>Buy a hint?</h3><div class="small">The letter in this square (' + ents.map(lab).join(' / ') + ') is filled in for <b>−' + HINT_COST + '</b> points, and your turn ends. It helps the other player too.</div>' +
+    '<div class="row" style="margin-top:12px"><button id="rNo" style="flex:1">Never mind</button><button class="primary" id="rYes" style="flex:1">Hint −' + HINT_COST + '</button></div>');
+  $('rNo').onclick = function () { closeSheet(); hintMode = false; renderGame(); };
+  $('rYes').onclick = function () { closeSheet(); hintLetter(i); };
 }
 function setupSheet() {
   openSheet('<h3>Start a new game</h3><div class="small">This replaces the current game in this tab for both of you. A new crossword is built.</div>' +
@@ -881,7 +911,7 @@ function menuSheet() {
     (window.GamesApp && GamesApp.winnersLog ? '<button id="mLog" style="width:100%;margin-bottom:10px">🏆 Winners\' Log</button>' : '') +
     '<div class="card"><h2>How to play</h2><div class="small">Take turns. On your turn tap a square (tap it again for the other direction) or use ◀ ▶ to pick a clue, type the letters for its <b>empty</b> squares, and tap <b>Guess</b>. ' +
     'A right answer claims the word: <b>' + PER_LETTER + ' points a letter</b>. Any other word that your letters finish is yours too, so think about which letters you hand over: a word that is one letter short is easy pickings. ' +
-    'A wrong guess just passes the turn. Stuck? <b>Reveal</b> fills in one random square of the clue for <b>−' + REVEAL_COST + '</b> and ends your turn (it helps your opponent as well). ' +
+    'A right answer lets you <b>go again</b>, up to ' + CHAIN_MAX + ' words in a row. A wrong guess ends your turn and costs <b>' + WRONG_PER_LETTER + ' points for every square you typed</b>, and <b>the other player gets those points</b>. Stuck? Tap <b>Hint</b>, then any empty square: its letter is filled in for <b>−' + HINT_COST + '</b> and your turn ends (it helps your opponent as well). You need at least ' + HINT_COST + ' points to buy one, and a hint can\'t go on a square that would finish a word. ' +
     'The game ends when every word is solved, or after ' + IDLE_END + ' turns in a row with no new word. Highest score wins. Blue is whoever started the game, Red joined it; who goes first is random.</div></div>' +
     (S && S.entries ? '<button id="mClues" style="width:100%;margin-bottom:10px">All clues</button>' : '') +
     (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
@@ -908,7 +938,8 @@ function toast(t) {
 }
 function buzzIfMyTurn() {
   const key = S && (S.gid + ':' + S.moveNo + ':' + S.status);
-  if (myTurn() && key !== lastTurnKey && lastTurnKey && navigator.vibrate) navigator.vibrate(120);
+  const mv = S && (S.moves || [])[(S.moves || []).length - 1];
+  if (myTurn() && key !== lastTurnKey && lastTurnKey && navigator.vibrate && !(mv && mv.p === me())) navigator.vibrate(120);
   lastTurnKey = key || '';
 }
 

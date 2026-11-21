@@ -1,5 +1,15 @@
 # Games app: changelog
 
+## Crossword 1.2 (2026-11-21): hot streaks and steals
+- **Go again:** a right guess lets you keep the turn, up to **3 words in a row**. A wrong guess, a Hint or a Pass ends your turn. Words finished by crossing letters don't count toward the 3. The status line shows "word 2 of 3 in a row".
+- **Steal on a miss:** a wrong guess still costs **5 points for every square you typed**, and now the **other player gets those points**. A miss is a swing of 10 a square.
+- The new `chain` field in the save (0 in older saves) holds the streak. No server change; games in progress keep working.
+
+## Crossword 1.1 (2026-11-21): hints cost points, misses cost points
+- **Hint replaces Reveal:** tap **Hint −20**, then tap any empty square and its letter is filled in. It ends your turn and helps the other player too. You need at least 20 points to buy one, so a hint never takes you below zero. A hint can't go on a square that would finish a word (otherwise you could buy a crossing word for 20).
+- **A wrong guess costs 5 points a square you typed** (your score can go below zero from a miss).
+- Tests: `node test/crossword.js` (full game with two pretend phones) and the new `node test/scoring-harness.js` (the scoring rules on a tiny 3x3 puzzle).
+
 ## Crossword replaces Gardens (2026-11-20): Crossword 1.0, Games app 1.7, Games API 1.7
 - **Crossword** (new **Crossword** tab, in Gardens' old spot): a crossword for two. Create a game and pick **Small** (about 8 words), **Medium** (about 12) or **Large** (about 16); the grid is built on the spot from a bank of about **5,000 clues**, and **no word or clue is ever used twice**, in any game (that's 400+ medium games before the bank runs dry; if it ever does, it starts over). On your turn tap a square (tap again for the other direction) or use ◀ ▶ to pick a clue, type the letters for its empty squares on the on-screen keyboard, and tap **Guess**. A right answer **claims the word: 10 points a letter**, and any other word your letters finish is yours too, so handing over the second-to-last letter of a crossing word is a risk. A wrong guess just passes the turn. **Reveal −10** fills in one random square of the clue and ends your turn (it helps the other player too). The game ends when every word is solved, or after 6 turns in a row with no new word; highest score wins. Blue is whoever started the game, Red joined; who goes first is random.
 - Same bits as the other games: up to 5 games at once (Game 1-5 tabs, green dot = your move, ✓ = over), ☰ menu with **🏆 Winners' Log** (the finished game and every move are logged), **All clues** list, Rematch, Close game. Answers are never saved as plain text (each word is scrambled in the save file, like Wheelhouse puzzles).
