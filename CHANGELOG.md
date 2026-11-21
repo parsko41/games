@@ -1,5 +1,17 @@
 # Games app: changelog
 
+## Answers 1.8 (2026-11-21): better category mix, recent TV and movies, always some science
+- **Never two categories about the same thing on one board:** TV and Television, Movies and Film, Music and Music, Books and Literature, History and World History and so on are grouped into families, and a board takes at most one from each (the list is `FAMILIES` in `answers/src/index.src.html`).
+- **No more online Film or TV categories** (the online sources are full of old movies nobody has seen), and no online Film/TV final clue either. The built-in **TV** and **Movies** categories are rewritten with recent shows and films (Game of Thrones, Stranger Things, Parasite, Oppenheimer...), and there are four new ones to rotate through: **TV Comedies**, **TV Dramas**, **Animated Movies** and **Blockbusters**. A board still gets at most one TV and one movie category.
+- **Music skews recent:** the built-in Music category is rewritten (Thriller, One Direction, the Eras Tour, Lemonade, Adele's 21), and an online Music category is skipped if any clue mentions a year, decade or "the sixties" before 1970.
+- **Every board has at least one science category** (Science 101, Space, Electronics, Elements, The Human Body, Animals, Birds, Weather, Robots, Tech, Math, The Great Outdoors, or online Science / Science & Nature / Computers). If the pick has none, one replaces the last category.
+- Page and clue files only: no server change, games in progress keep working. Checked on 300 pretend boards (no clashes, always a science category, no online TV/Film, no old online Music). `test/e2e.js` wasn't run.
+
+## Cipher Strike 1.1 (2026-11-21): tap any square, clearer Attack/Defend
+- **Tap any of the 5 squares** while guessing (or picking your secret word) and type into it: you can fill the middle or the end first and leave the rest for later. The gold box shows where the next letter goes; after a letter it jumps to the next empty square. ⌫ clears the selected square (or, if it's already empty, steps left and clears that one). Enter lights up once all 5 squares are filled. On a computer keyboard, the left/right arrows also move the gold box.
+- **How to play rewritten:** Attack and Defend are two screens you can flip between at any time, not two phases. Attack is where you guess; Defend shows your own secret word, their guesses at it, and the sabotage shop. Nothing in Defend protects your word by itself.
+- Page only; no server change. Games in progress keep working (the half-typed word is never saved).
+
 ## Crossword 1.2 (2026-11-21): hot streaks and steals
 - **Go again:** a right guess lets you keep the turn, up to **3 words in a row**. A wrong guess, a Hint or a Pass ends your turn. Words finished by crossing letters don't count toward the 3. The status line shows "word 2 of 3 in a row".
 - **Steal on a miss:** a wrong guess still costs **5 points for every square you typed**, and now the **other player gets those points**. A miss is a swing of 10 a square.

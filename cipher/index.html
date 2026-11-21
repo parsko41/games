@@ -57,7 +57,8 @@
   .t.h{background:var(--fog)}
   .t.h::after{content:"?";position:absolute;right:4px;bottom:1px;font-size:11px;color:#fffa}
   .t.e{background:transparent;box-shadow:inset 0 0 0 2px #34407a}
-  .t.e.on{box-shadow:inset 0 0 0 2px var(--gold)}
+  .typing .t.e[data-slot]{cursor:pointer}
+  .t.e.on{box-shadow:inset 0 0 0 3px var(--gold)}
   .t.cur{box-shadow:inset 0 0 0 2px #6a77b5}
   .gr.typing .t{font-size:24px}
   .gnote{text-align:center;font-size:13px;color:var(--dim);margin:-2px 0 6px}
@@ -129,6 +130,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.1', '2026-11-21', 'Guess entry: tap any of the 5 squares and type into it, in any order (the gold box shows where the next letter goes; ⌫ clears it). Enter works once all 5 are filled. Clearer how-to-play text for Attack and Defend.'],
   ['1.0', '2026-11-01', 'First version: each player picks a secret 5-letter word, then you take turns guessing each other\'s word with Wordle-style colors. Earn a Sabotage Point every turn and spend it on a Smoke Screen (hides a color in their next guess) or a Data Leak (shows you a letter of their word and scrambles their guess list for a turn). First to crack the other word wins. Secret words are scrambled in the save file.']
 ];
 
@@ -145,7 +147,8 @@ if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('cipher-d
 
 let S = null;            // current game state (from server)
 let busy = false;        // waiting on a save
-let typed = '';          // letters typed for the guess or secret word (local only)
+let typed = '';          // the guess or secret word being entered: '' or 5 characters, a space = empty square (local only)
+let cur = 0;             // which of the 5 squares the next letter goes into (local only)
 let view = 'attack';     // 'attack' | 'defend' (local only)
 let lastTurnKey = '';
 const MAX_GAMES = 5;
@@ -258,7 +261,7 @@ function commit(ns, after, redo) {
 function switchTab(i) {
   if (i === curSlot || busy) return;
   curSlot = i; lsSet('cipher-slot', String(i));
-  S = null; loaded = false; typed = ''; view = 'attack'; lastTurnKey = '';
+  S = null; loaded = false; typed = ''; cur = 0; view = 'attack'; lastTurnKey = '';
   closeSheet();
   render();
   store.get(function (st) { if (st !== undefined) apply(st); });
@@ -303,7 +306,7 @@ function apply(st) {
   S = st;
   renderTabs();
   if (!changed) return;
-  if (turnMoved) typed = '';
+  if (turnMoved) { typed = ''; cur = 0; }
   render();
   buzzIfMyTurn();
 }
@@ -389,7 +392,7 @@ function setSecret(w) {
   };
   const ns = build();
   if (!ns) return;
-  typed = '';
+  typed = ''; cur = 0;
   commit(ns, null, build);
 }
 
@@ -410,7 +413,7 @@ function guess(w) {
   p.fx = { smoke: 0, scramble: false };
   const pattern = f.map(function (c) { return { g: '🟩', y: '🟨', x: '⬛', h: '🟪' }[c]; }).join('');
   ns.moves = (ns.moves || []).concat([{ p: m, t: w + ' ' + pattern }]);   // every guess, for the Winners' Log
-  typed = '';
+  typed = ''; cur = 0;
   if (w === o.secret) {
     p.score += STRIKE + (under ? UNDER_FIRE : 0);
     ns.status = 'over'; ns.winner = m;
@@ -472,9 +475,12 @@ function keyStates() {        // best color seen for each letter in my own guess
   (S.players[m].leaks || []).forEach(function (x) { if (!out[x[0]]) out[x[0]] = 'leak'; });   // in the word
   return out;
 }
+function slotsNow() { const a = []; for (let i = 0; i < LEN; i++) a.push(typed[i] && typed[i] !== ' ' ? typed[i] : ''); return a; }
+function setSlots(a) { typed = a.some(function (x) { return x; }) ? a.map(function (x) { return x || ' '; }).join('') : ''; }
+function isFull() { return slotsNow().every(function (x) { return x; }); }
 function renderKeys(on) {
   if (!on) { $('keys').innerHTML = ''; return; }
-  const st = keyStates(), full = typed.length === LEN, dis = busy ? ' disabled' : '';
+  const st = keyStates(), full = isFull(), dis = busy ? ' disabled' : '';
   $('keys').innerHTML = ROWS.map(function (r) {
     return '<div class="kr">' + r.split('').map(function (L) {
       if (L === '>') return '<button class="wide' + (full ? ' go' : '') + '" data-k="Enter"' + (full ? dis : ' disabled') + '>Enter</button>';
@@ -487,15 +493,26 @@ function press(k) {
   if (busy) return;
   const setup = S && S.status === 'setup';
   if (!setup && !myTurn()) return;
-  if (k === 'Backspace') typed = typed.slice(0, -1);
-  else if (k === 'Enter') return submitTyped();
-  else if (/^[A-Z]$/.test(k) && typed.length < LEN) typed += k;
-  else return;
+  const a = slotsNow();
+  if (k === 'Enter') return submitTyped();
+  else if (k === 'Backspace') {            // clear this square; if it's already empty, step left and clear that one
+    if (a[cur]) a[cur] = '';
+    else if (cur > 0) { cur--; a[cur] = ''; }
+  } else if (k === 'ArrowLeft') cur = Math.max(0, cur - 1);
+  else if (k === 'ArrowRight') cur = Math.min(LEN - 1, cur + 1);
+  else if (/^[A-Z]$/.test(k)) {            // fill the selected square, then move to the next empty one (right first, then from the left)
+    a[cur] = k;
+    let n = -1;
+    for (let i = cur + 1; i < LEN && n < 0; i++) if (!a[i]) n = i;
+    for (let i = 0; i < cur && n < 0; i++) if (!a[i]) n = i;
+    cur = n >= 0 ? n : Math.min(LEN - 1, cur + 1);
+  } else return;
+  setSlots(a);
   render();
 }
 function submitTyped() {
-  const w = typed;
-  if (w.length !== LEN) return toast(LEN + ' letters, please.');
+  const w = slotsNow().join('');
+  if (w.length !== LEN) return toast('Fill all ' + LEN + ' squares first.');
   if (!DICT) return toast('Still loading the word list…');
   if (!isWord(w)) return toast(w + ' isn\'t in the word list.');
   if (S.status === 'setup') return setSecret(w);
@@ -503,11 +520,18 @@ function submitTyped() {
   if (mine.some(function (g) { return g.w === w; })) return toast('You already guessed ' + w + '.');
   guess(w);
 }
+$('body').onclick = function (e) {         // tap any of the 5 squares to type there
+  const t = e.target.closest('[data-slot]');
+  if (!t || busy) return;
+  if (!(S && (S.status === 'setup' || myTurn()))) return;
+  cur = +t.dataset.slot;
+  render();
+};
 $('keys').onclick = function (e) { const b = e.target.closest('button'); if (b && !b.disabled) press(b.dataset.k); };
 document.addEventListener('keydown', function (e) {
   if (e.ctrlKey || e.metaKey || e.altKey || !$('sheet').classList.contains('hidden')) return;
   const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-  if (/^[A-Z]$/.test(k) || k === 'Enter' || k === 'Backspace') { press(k); e.preventDefault(); }
+  if (/^[A-Z]$/.test(k) || k === 'Enter' || k === 'Backspace' || k === 'ArrowLeft' || k === 'ArrowRight') { press(k); e.preventDefault(); }
 });
 
 // ---------- render ----------
@@ -573,7 +597,8 @@ function tiles(word, cls, extra) {
 }
 function typingRow(on) {
   return '<div class="gr typing">' + [0, 1, 2, 3, 4].map(function (i) {
-    return '<div class="t e' + (on && i === typed.length ? ' on' : '') + (typed[i] ? ' cur' : '') + '">' + esc(typed[i] || '') + '</div>';
+    const L = slotsNow()[i];
+    return '<div class="t e' + (on && i === cur ? ' on' : '') + (L ? ' cur' : '') + '"' + (on ? ' data-slot="' + i + '"' : '') + '>' + esc(L) + '</div>';
   }).join('') + '</div>';
 }
 
@@ -639,7 +664,7 @@ function renderSetup() {
     return;
   }
   $('body').innerHTML = '<div class="card center"><h2>Pick your secret word</h2>' + typingRow(true) +
-    '<div class="small">Any real ' + LEN + '-letter word. Only you can see it until the game ends.</div></div>';
+    '<div class="small">Any real ' + LEN + '-letter word. Only you can see it until the game ends. Tap any square to type there.</div></div>';
   renderKeys(true);
 }
 
@@ -697,7 +722,11 @@ function menuSheet() {
     (window.GamesApp && GamesApp.winnersLog ? '<button id="mLog" style="width:100%;margin-bottom:10px">🏆 Winners\' Log</button>' : '') +
     '<div class="card"><h2>How to play</h2><div class="small">Each of you picks a secret 5-letter word. Then you take turns guessing the other word (who goes first is random). ' +
     'After each guess the letters light up: <b>green</b> = right letter, right spot; <b>yellow</b> = in the word, wrong spot; <b>gray</b> = not in the word. ' +
-    '<b>Attack</b> shows your guesses; <b>Defend</b> shows your word, their guesses at it, and the sabotage shop.<br><br>' +
+    'On your turn, tap any of the 5 squares and type into it, in any order, then tap <b>Enter</b>.<br><br>' +
+    '<b>⚔️ Attack and 🛡️ Defend are just two screens you can flip between at any time, not two phases.</b> ' +
+    '<b>Attack</b> is where you guess: your guesses so far and the keyboard. ' +
+    '<b>Defend</b> is where you look after your own word: it shows your secret word, the guesses they have made at it (so you can see how close they are), and the <b>sabotage shop</b> where you spend ⚡ to make their next guess harder. ' +
+    'Nothing in Defend protects your word by itself. A turn is simply: (optional) open Defend and buy sabotage, flip back to Attack, then guess. A gold dot on Defend means you can afford something.<br><br>' +
     'You earn 1 ⚡ Sabotage Point every turn. On your turn, before you guess, you can spend them: ' +
     '<b>🌫️ Smoke Screen</b> (' + SMOKE_COST + '): one letter of their next guess shows purple instead of its color (stack up to ' + MAX_SMOKE + '). ' +
     '<b>🔓 Data Leak</b> (' + LEAK_COST + '): you\'re shown one letter of their word you haven\'t tried yet (or, once you\'ve tried them all, which spot one goes in), and their guess list is shown out of order on their next turn.<br><br>' +

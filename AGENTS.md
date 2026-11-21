@@ -83,6 +83,9 @@ by `node answers/src/build.js` (it pastes the clue lists in at `/*CLUES*/` and `
 - Scoring (constants at the top: `PER_LETTER`, `HINT_COST`, `WRONG_PER_LETTER`, `CHAIN_MAX`): a word is worth 10 per letter to whoever fills in its last empty square, and `claimFinished` hands over every word a move completes. A right guess keeps the turn until `ns.chain` reaches 3 (`endTurn(ns, claimed, keep)`); crossing words don't add to the chain. A wrong guess takes 5 per typed square from the guesser and gives it to the other player. A Hint (`hintLetter`, tap a square) costs 20, needs a score of at least 20 (never goes negative), can't go on a square that would finish any word (`hintable`), and ends the turn. The game ends when every word is claimed or after 6 turns in a row with no claim. Tests: `node test/crossword.js` and `node test/scoring-harness.js`; run both after touching the rules.
 - Every save bumps `moveNo` by exactly 1. Don't rename the state fields: games in progress must keep working.
 
+### Answers category rules
+`buildBoard` in `answers/src/index.src.html` applies `FAMILIES`: one category per family on a board (so no TV + Television), at least one `science` category, no online Film/TV categories or finals, and online Music only if it has no pre-1970 reference. A new built-in category in `clues.txt` should get a `FAMILIES` entry if it overlaps an existing one. Keep TV, movie and music clues recent (the players haven't seen old films).
+
 ### Server changes (`server/Code.gs`) need Player 1
 The Games API runs from Player 1's Google account. If a change needs `server/Code.gs`, give the new
 file and say that **Player 1** must paste it into the "Games API" Apps Script project (in the Games folder

@@ -59,17 +59,17 @@ This Italian city gives its name to a famous meat sauce :: Bologna
 Kimchi is a staple fermented dish from this country :: Korea|South Korea
 Harvested from crocus flowers, it's the world's most expensive spice :: Saffron
 # Music
-He was called the "King of Pop" :: Michael Jackson|Jackson
-Freddie Mercury fronted this band :: Queen
-The Beatles came from this English port city :: Liverpool
-It's the number of keys on a standard piano :: 88|Eighty-eight
-He composed his Ninth Symphony while almost completely deaf :: Beethoven|Ludwig van Beethoven
+Michael Jackson's 1982 album is the best-selling album of all time :: Thriller
+Harry Styles was a member of this boy band before going solo :: One Direction
+Taylor Swift's record-breaking 2023-24 tour was called "The ___ Tour" :: Eras
+Beyoncé's 2016 visual album is named after this sour drink :: Lemonade
+Adele named her 2011 blockbuster album, home of "Rolling in the Deep", after her age at the time :: 21|Twenty-one
 # Movies
-"May the Force be with you" :: Star Wars
-Steven Spielberg's 1993 film about cloned dinosaurs :: Jurassic Park
-In this Pixar film, a rat named Remy wants to be a chef in Paris :: Ratatouille
-"Here's looking at you, kid" comes from this 1942 classic :: Casablanca
-He directed "Psycho" and the San Francisco-set "Vertigo" :: Alfred Hitchcock|Hitchcock
+Elsa sings "Let It Go" in this 2013 Disney animated film :: Frozen
+Pixar's 2015 film is set inside a girl's head, where Joy and Sadness are characters :: Inside Out
+In "Avatar", the blue Na'vi live on this moon :: Pandora
+This 2023 film was released the same day as "Barbie" and won Best Picture :: Oppenheimer
+In 2020 this South Korean film became the first non-English-language film to win Best Picture :: Parasite
 # Sports
 The Golden State Warriors play this sport :: Basketball
 It's the number of players per side on the field in soccer :: 11|Eleven
@@ -149,11 +149,11 @@ Edvard Munch painted this anguished figure on a bridge :: The Scream|Scream
 Michelangelo painted the ceiling of this chapel in Vatican City :: Sistine Chapel|Sistine
 This Spanish artist painted "Guernica" :: Picasso|Pablo Picasso
 # TV
-Six pals hang out at Central Perk in this sitcom :: Friends
-The Simpsons live in this town :: Springfield
-In "Breaking Bad", this chemistry teacher goes by "Heisenberg" :: Walter White|Walter|Walt
-Jerry Seinfeld's wacky neighbor across the hall :: Kramer|Cosmo Kramer
-Michael Scott manages this paper company's Scranton branch :: Dunder Mifflin
+In this HBO fantasy series, the Starks warn that "Winter is coming" :: Game of Thrones
+Eleven and her friends face the Upside Down in this Netflix hit set in Hawkins, Indiana :: Stranger Things
+The Mandalorian protects this tiny green child, nicknamed "Baby Yoda" :: Grogu|Baby Yoda
+Anya Taylor-Joy plays chess prodigy Beth Harmon in this 2020 Netflix miniseries :: The Queen's Gambit|Queens Gambit
+In HBO's "Succession", the Roy family owns this media company :: Waystar Royco|Waystar
 # California
 It's California's official nickname :: Golden State|The Golden State
 An 1848 discovery at Sutter's Mill set off this :: Gold Rush|California Gold Rush
@@ -214,3 +214,27 @@ Its symbol is Fe :: Iron
 This noble gas glows red-orange in signs :: Neon
 It's the most abundant element in the universe :: Hydrogen
 This metal, symbol Hg, is a liquid at room temperature :: Mercury
+# TV Comedies
+The Simpsons live in this town :: Springfield
+Michael Scott manages Dunder Mifflin in this NBC mockumentary :: The Office|Office
+In "Ted Lasso", an American coach takes over a British club in this sport :: Soccer|Football
+"Abbott Elementary" is set in a school in this Pennsylvania city :: Philadelphia
+Leslie Knope works for the parks department in this fictional Indiana town :: Pawnee
+# TV Dramas
+Gi-hun and hundreds of others play deadly children's games in this Korean Netflix series :: Squid Game
+Walter White's alias in "Breaking Bad" is this scientist's name :: Heisenberg
+Jesse, Walter White's partner in "Breaking Bad", has this last name :: Pinkman
+Jenna Ortega plays the title teen in "Wednesday", a member of this spooky family :: The Addams Family|Addams Family|Addams
+Claire Foy and Olivia Colman played this British monarch in "The Crown" :: Queen Elizabeth II|Elizabeth II|Elizabeth|Queen Elizabeth
+# Animated Movies
+The green ogre in this 2001 DreamWorks film lives in a swamp :: Shrek
+Marlin crosses the ocean to find his son in this Pixar film :: Finding Nemo
+Pixar's 2009 film about an old man whose house floats away on balloons :: Up
+Dwayne Johnson voices the demigod Maui in this 2016 Disney film :: Moana
+Miles Morales is the hero of "Spider-Man: Into the ___" :: Spider-Verse|Spider Verse
+# Blockbusters
+Tony Stark builds a flying armored suit in this 2008 Marvel film :: Iron Man
+Greta Gerwig directed this 2023 hit starring Margot Robbie as a doll :: Barbie
+T'Challa is king of this fictional African nation in "Black Panther" :: Wakanda
+Thanos snaps his fingers in "Avengers: ___ War" (2018) :: Infinity
+This 2015 film brought back Han Solo and introduced Rey and Finn :: The Force Awakens|Star Wars: The Force Awakens|Force Awakens

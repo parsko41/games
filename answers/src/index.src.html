@@ -130,6 +130,7 @@
 <script>
 // ---------- versions (bump on every change) ----------
 const VERSIONS = [
+  ['1.8', '2026-11-21', 'Better category mix. Never two categories about the same thing on a board (TV and Television, Movies and Film, Music and Music...). No online Film or TV categories any more (they were mostly old films you haven\'t seen); the built-in TV and Movie categories are now recent shows and films, with more of them (TV Comedies, TV Dramas, Animated Movies, Blockbusters), and music skews recent. Every board has at least one science category (science, space, electronics, nature, the human body, math...). Online Music is skipped if it mentions anything before 1970. Page only: no server change.'],
   ['1.7', '2026-10-31', 'The game tabs say Game 1, Game 2 and so on, and the version beside the ☰ menu now reads v1.7. Same top bar as Tilework and Wheelhouse.'],
   ['1.6', '2026-10-30', 'Cleaner top bar: the Answers title is gone and the game tabs are just 1 to 5, spread evenly so all five fit without scrolling (a green dot is still your move, a check mark means the game is over). Hold a tab to see who it is against. Also: ☰ → End this game now always works, even in the middle of the computer\'s move (before, it could silently do nothing, and a failed attempt could leave the game stuck).'],
   ['1.5', '2026-10-15', 'No repeats in Built-in only games either. When every built-in category or final has been played in the last year, fresh online clues are used instead of repeating old ones (before, Built-in only games started repeating after about 3 games). Needs Games API 1.4.'],
@@ -415,13 +416,46 @@ function judge(resp, answer, clue) {
 }
 function isRight(resp, answer, clue) { return !!judge(resp, answer, clue); }
 
+// ---------- category families ----------
+// Two categories in the same family never share a board (TV + Television, Music + Music, Movies + Film...).
+// 'science' is different: it isn't exclusive, but every board needs at least one.
+const FAMILIES = {
+  'TV': ['tv'], 'TV Comedies': ['tv'], 'TV Dramas': ['tv'], 'Television': ['tv'], 'Film & TV': ['tv', 'film'],
+  'Movies': ['film'], 'Animated Movies': ['film'], 'Blockbusters': ['film'], 'Film': ['film'],
+  'Music': ['music'], 'Animals': ['animals', 'science'], 'Sports': ['sports'], 'Geography': ['geography'],
+  'World History': ['history'], 'History': ['history'], 'Food & Drink': ['food'],
+  'Literature': ['books'], 'Books': ['books'], 'Arts & Literature': ['books', 'art'], 'Art': ['art'],
+  'Tech': ['tech', 'science'], 'Computers': ['tech', 'science'],
+  'Science 101': ['science'], 'Science': ['science'], 'Science & Nature': ['science'], 'Electronics': ['science'],
+  'Space': ['science'], 'Elements': ['science'], 'The Human Body': ['science'], 'Birds': ['science'],
+  'Weather': ['science'], 'Robots': ['science'], 'Math': ['science'], 'The Great Outdoors': ['science']
+};
+function famsOf(name) { return FAMILIES[name] || []; }
+function isScience(name) { return famsOf(name).indexOf('science') >= 0; }
+function clash(a, b) {
+  const fa = famsOf(a).filter(function (f) { return f !== 'science'; });
+  return a === b || famsOf(b).some(function (f) { return fa.indexOf(f) >= 0; });
+}
+// Anything before 1970 in an online pop-culture clue (a year, a decade, or "the sixties").
+const OLD_ERA = /\b(1[0-8]\d\d|19[0-6]\d)|\b'?[3-6]0'?s\b|\b(thirties|forties|fifties|sixties)\b/i;
+function onlineBlocked(c) {      // online categories we won't use at all
+  const f = famsOf(c.name);
+  if (f.indexOf('tv') >= 0 || f.indexOf('film') >= 0) return true;                       // mostly old films nobody has seen
+  if (f.indexOf('music') >= 0) return c.clues.some(function (x) { return OLD_ERA.test(x.q + ' ' + x.a); });
+  return false;
+}
+
 // ---------- building a board ----------
 function buildBoard(ns, round, cb) {
   ns.usedCats = ns.usedCats || [];
   const src = ns.settings.source;
   const nOnline = src === 'online' ? 6 : src === 'mixed' ? 2 : 0;
   const finish = function (online, picked) {   // picked: built-in names the Games API chose, best first
-    const cats = online.slice(0, 6).map(function (c) { return { name: c.name, src: 'online', clues: c.clues }; });
+    const cats = [];
+    const fits = function (name) { return !cats.some(function (c) { return clash(c.name, name); }); };
+    online.forEach(function (c) {
+      if (cats.length < 6 && !onlineBlocked(c) && fits(c.name)) cats.push({ name: c.name, src: 'online', clues: c.clues });
+    });
     let pool = CLUES.filter(function (c) { return ns.usedCats.indexOf(c.name) < 0; });
     if (pool.length < 6 - cats.length) { ns.usedCats = []; pool = CLUES.slice(); }
     pool = shuffle(pool);
@@ -429,10 +463,28 @@ function buildBoard(ns, round, cb) {
       const rank = function (c) { const i = picked.indexOf(c.name); return i < 0 ? 99 : i; };
       pool.sort(function (x, y) { return rank(x) - rank(y); });
     }
-    pool.slice(0, 6 - cats.length).forEach(function (c) {
+    const addBuilt = function (c) {
       ns.usedCats.push(c.name);
       cats.push({ name: c.name, src: 'built-in', clues: c.clues.map(function (x) { return { q: x.q, a: x.a }; }) });
-    });
+    };
+    pool.forEach(function (c) { if (cats.length < 6 && fits(c.name)) addBuilt(c); });
+    pool.forEach(function (c) { if (cats.length < 6 && !cats.some(function (x) { return x.name === c.name; })) addBuilt(c); });   // only if the clash rule left us short
+    // every board gets at least one science category: swap out the last non-science one
+    if (!cats.some(function (c) { return isScience(c.name); })) {
+      const sci = shuffle(CLUES.filter(function (c) { return isScience(c.name) && ns.usedCats.indexOf(c.name) < 0; }));
+      const pick = sci.length ? sci[0] : shuffle(CLUES.filter(function (c) { return isScience(c.name); }))[0];
+      if (pick) {
+        for (let i = cats.length - 1; i >= 0; i--) {
+          const rest = cats.filter(function (x, j) { return j !== i; });
+          if (rest.every(function (x) { return !clash(x.name, pick.name); })) {
+            if (cats[i].src === 'built-in') ns.usedCats = ns.usedCats.filter(function (n) { return n !== cats[i].name; });
+            ns.usedCats.push(pick.name);
+            cats[i] = { name: pick.name, src: 'built-in', clues: pick.clues.map(function (x) { return { q: x.q, a: x.a }; }) };
+            break;
+          }
+        }
+      }
+    }
     shuffle(cats);
     cats.forEach(function (c) { c.clues.forEach(function (cl, r) { cl.v = 200 * round * (r + 1); cl.used = false; cl.dd = false; cl.who = null; }); });
     const ddCats = shuffle([0, 1, 2, 3, 4, 5]).slice(0, round >= 2 ? 2 : 1);
@@ -513,6 +565,10 @@ function nextRound() {
   $('msg').textContent = 'Picking the final clue…';
   startFinal(ns, function () { busy = false; commit(ns); });
 }
+function finalBlocked(r) {      // no online film/TV finals, and no pre-1970 music
+  const f = famsOf(r.cat);
+  return f.indexOf('tv') >= 0 || f.indexOf('film') >= 0 || (f.indexOf('music') >= 0 && OLD_ERA.test(r.q + ' ' + r.a));
+}
 function startFinal(ns, cb) {
   ns.cur = null;
   const inn = ns.players.map(function (p, i) { return i; }).filter(function (i) { return ns.players[i].score > 0; });
@@ -525,7 +581,7 @@ function startFinal(ns, cb) {
     cb();
   };
   store.planFinal(FINALS.map(function (f) { return f.cat + ' :: ' + f.q; }), ns.settings.source !== 'builtin', function (r) {
-    if (r && r.q && r.a) return use({ cat: r.cat, q: r.q, a: r.a });            // online: every built-in final was played this year
+    if (r && r.q && r.a && !finalBlocked(r)) return use({ cat: r.cat, q: r.q, a: r.a });   // online: every built-in final was played this year
     if (r && FINALS[r.i]) { ns.usedFinals.push(r.i); return use(FINALS[r.i]); }
     let pool = FINALS.map(function (f, i) { return i; }).filter(function (i) { return ns.usedFinals.indexOf(i) < 0; });
     if (!pool.length) { ns.usedFinals = []; pool = FINALS.map(function (f, i) { return i; }); }
