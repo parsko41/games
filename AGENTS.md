@@ -8,7 +8,7 @@ They are not programmers and usually work from a phone. Read this whole file fir
 - **Tilework**: Scrabble-style word game. `tilework/index.html`
 - **Wheelhouse**: Wheel of Fortune-style. `wheelhouse/index.html`
 - **Answers**: Jeopardy-style, with an optional computer opponent. `answers/src/` (built into `answers/index.html`)
-- **Gardens** (new, still being designed): shape a plot together, then grow it overnight with plants, weeds and scarce water. `garden/index.html`. Its rules and open questions live in `garden/RULES.md`.
+- **Crossword** (replaced Gardens): a crossword for two, built on the phone from a bank of clues. Take turns picking a clue and typing its answer; a right answer claims the word (10 points a letter). `crossword/index.html`.
 - **Letter Thief** (tab "Thief"): an 8x8 letter grid, Blue vs Red. Trace words through touching
   letters to claim tiles and steal the other player's. `thief/index.html`
 - **Cipher Strike** (tab "Cipher"): each player picks a secret 5-letter word, then they take turns
@@ -16,7 +16,7 @@ They are not programmers and usually work from a phone. Read this whole file fir
   Secret words (and leaked letters) go through `hide()`/`reveal()` like the other answers.
 - Letter Thief and Cipher Strike use Tilework's word list (`getWords`), sharing its phone cache
   (`tilework-words-1` in localStorage), and save to `Games/Letter Thief/Save data` and
-  `Games/Cipher Strike/Save data` (made by the Games API the first time, like Garden's).
+  `Games/Cipher Strike/Save data` (made by the Games API the first time, like `Games/Crossword/Save data`).
 
 Live app: https://parsko41.github.io/games/ (GitHub Pages, repo `parsko41/games`, branch `main`, root).
 
@@ -75,13 +75,13 @@ by `node answers/src/build.js` (it pastes the clue lists in at `/*CLUES*/` and `
   Clue format: `# Category` line, then 5 lines `clue :: answer|other accepted answer`, easiest first.
   Final clues: `Category :: clue :: answer`. No backticks in clue text.
 
-### Gardens notes
-- The game is called **Gardens**; internal ids stay singular (game key `garden`, folder `garden/`, `garden-*` storage keys, Drive folder `Games/Garden`) so saves and the server keep working.
-- Open-question answers are saved in a second save file (slot 4, `garden-state-4.json`) by `saveNotes`: each player's answer is separate and the decision is shared, so two phones saving at once merge. The question list is `OPEN`; its third element is a stable id, so don't change an id once answers exist.
-- **Rules first.** When a Garden rule is decided or changed, update `garden/RULES.md` and the `DECIDED` / `OPEN` lists near the top of `garden/index.html` (shown under ☰ → Rules) so they match. Many numbers are settings picked when a garden is created (see `SETTING_FIELDS`); prefer a setting over a hard-coded change when the players are still undecided.
-- **Growth runs on the real clock, with no server timer.** `settle(S, now)` applies any nights that have passed (deterministic, so both phones agree) and the result is saved with the next player action. The garden day rolls over at 3 AM Pacific (`dayIndex`, and `gardenDay_()` in `server/Code.gs`: keep them identical). After 3 unattended nights the garden naps.
-- One garden at a time (save slot 0). Players act whenever they have actions, not in strict turns, except while shaping. Every save still bumps `moveNo` by exactly 1.
-- The pure rules (`tick`, `doAction`, `settle`, `scores`) have no screen code, so they can be tested in Node by evaluating the ENGINE block. The opening screen is controlled by `SHOW_INTRO` at the top of the script.
+### Crossword notes
+- Game key `crossword`, folder `crossword/`, `crossword-*` storage keys, Drive folder `Games/Crossword` (made by the Games API the first time). It replaced Gardens; the old `Games/Garden` folder on Drive was left alone.
+- The game is `crossword/index.html` plus its clue bank `crossword/bank.txt` (fetched when a game is created): one `clue :: ANSWER` per line, answer letters only (3 to 11 of them, no spaces or digits). Hand-written clues come first, then about 4,700 WordNet definitions. Adding or deleting lines is the easy way to improve the game; keep each clue short and unambiguous, and don't let the clue contain its answer.
+- **No word is ever reused.** Each new puzzle asks the Games API for `getUsed` (every answer used so far, space separated, in `Games/Crossword/crossword-used.txt`), picks only other answers, and records its own with `addUsed`. Only if fewer than 250 unused answers remain does it start over (`addUsed(words, true)`). Keep this working if you change how puzzles are made.
+- The grid is built on the phone that creates the game (`makePuzzle`: random greedy packing, many tries, keeps the best) and saved in the game state: `w`, `h`, `mask` (`#` = block), `known` (the letters filled in so far, space = empty) and `entries` (`num`, `dir` A/D, `r`, `c`, `len`, `clue`, `by` = who claimed it or -1, `t` = claim order). `ans` is in memory only; saves hold `enc` (via `hide()`/`reveal()`), so answers are never saved as plain text.
+- Scoring: a word is worth 10 per letter to whoever fills in its last empty square, and `claimFinished` hands over every word a move completes. Reveal costs 10 and ends the turn. The game ends when every word is claimed or after 6 turns in a row with no claim.
+- Every save bumps `moveNo` by exactly 1. Don't rename the state fields: games in progress must keep working.
 
 ### Server changes (`server/Code.gs`) need Player 1
 The Games API runs from Player 1's Google account. If a change needs `server/Code.gs`, give the new
@@ -109,8 +109,7 @@ Mistakes are recoverable: GitHub keeps every old version (open the file → Hist
 | `tilework/index.html` | Tilework (whole game in one file) |
 | `wheelhouse/index.html` | Wheelhouse (whole game in one file, puzzle list inside) |
 | `answers/src/` | Answers source + clue lists; `answers/index.html` is built from it |
-| `garden/index.html` | Gardens (whole game in one file; rules engine between the `ENGINE START` / `ENGINE END` comments) |
-| `garden/RULES.md` | Gardens rules: what's decided and the open questions the players are settling together |
+| `crossword/index.html` | Crossword (whole game in one file, clue bank inside) |
 | `thief/index.html` | Letter Thief (whole game in one file) |
 | `cipher/index.html` | Cipher Strike (whole game in one file) |
 | `server/Code.gs` | Games API (Apps Script, runs in Player 1's account) |

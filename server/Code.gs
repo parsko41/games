@@ -1,4 +1,4 @@
-// Games API 1.6: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers, Garden,
+// Games API 1.7: one Apps Script that stores the saves for Tilework, Wheelhouse, Answers, Crossword,
 // Letter Thief and Cipher Strike.
 // The game pages live on GitHub Pages and call this script over HTTPS (doPost).
 // Saves stay where they've always been: Games/<Game>/Save data on Player 1's Drive.
@@ -26,16 +26,16 @@ const GAMES = {
     file: 'answers-state', parent: '1-gGJ2O0LXzXBdbX3wB6IbgpcLG7wNcwt',           // Games/Answers
     folder: '1KBmbtGoYfsDtKkbL22Gq8RTXruy1lHsw', strict: true, extra: ['getOnlineCategories', 'planBoard', 'planFinal']
   },
-  garden: {
-    file: 'garden-state', parent: '',                                                    // Games/Garden: made next to Tilework's folder the first time
-    folder: '', strict: true, extra: []
+  crossword: {
+    file: 'crossword-state', parent: '',                                                 // Games/Crossword: made next to Tilework's folder the first time
+    folder: '', strict: true, extra: ['getUsed', 'addUsed']
   },
   thief: {
-    file: 'thief-state', parent: '', name: 'Letter Thief',                              // Games/Letter Thief, made like Garden's
+    file: 'thief-state', parent: '', name: 'Letter Thief',                              // Games/Letter Thief, made like Crossword's
     folder: '', strict: true, extra: ['getWords']
   },
   cipher: {
-    file: 'cipher-state', parent: '', name: 'Cipher Strike',                            // Games/Cipher Strike, made like Garden's
+    file: 'cipher-state', parent: '', name: 'Cipher Strike',                            // Games/Cipher Strike, made like Crossword's
     folder: '', strict: true, extra: ['getWords']
   }
 };
@@ -54,7 +54,7 @@ function doPost(e) {
 
 // Opening the /exec link in a browser shows a quick health check.
 function doGet() {
-  const out = { ok: true, app: 'Games API 1.6', games: Object.keys(GAMES) };
+  const out = { ok: true, app: 'Games API 1.7', games: Object.keys(GAMES) };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -82,6 +82,8 @@ function dispatch_(game, fn, args, who) {
   if (fn === 'closeGame') return closeGame_(game, args[0], args[1]);
   if (g.extra.indexOf(fn) >= 0) {
     if (fn === 'getWords') return getWords();
+    if (fn === 'getUsed') return getUsed();
+    if (fn === 'addUsed') return addUsed(args[0], args[1]);
     if (fn === 'getTrendingPuzzle') return getTrendingPuzzle();
     if (fn === 'planPuzzle') return planPuzzle(args[0], args[1]);
     if (fn === 'getOnlineCategories') return getOnlineCategories(args[0], args[1]);
@@ -118,7 +120,7 @@ function folder_(game) {
 }
 
 // The Games/<Game> folder. The first three have fixed IDs. The others are found (or made) next to them,
-// so Garden's saves live in Games/Garden/Save data, Letter Thief's in Games/Letter Thief/Save data, and so on.
+// so Crossword's saves live in Games/Crossword/Save data, Letter Thief's in Games/Letter Thief/Save data, and so on.
 function parent_(game) {
   const g = GAMES[game];
   if (g.parent) return DriveApp.getFolderById(g.parent);
@@ -137,12 +139,6 @@ function parent_(game) {
 function gamesRoot_() {
   try { const up = DriveApp.getFolderById(GAMES.tilework.parent).getParents(); if (up.hasNext()) return up.next(); } catch (e) { /* fall through */ }
   return DriveApp.getRootFolder();
-}
-
-// The garden's day number, same as dayIndex() in garden/index.html (rolls over at 3 AM Pacific).
-function gardenDay_() {
-  const p = Utilities.formatDate(new Date(Date.now() - 3 * 3600000), 'America/Los_Angeles', 'yyyy-MM-dd').split('-');
-  return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
 }
 
 function slot_(slot) {
@@ -168,14 +164,9 @@ function summary_(game, s) {
     return { gid: s.gid, players: s.players, names: s.names || ['', ''], turn: s.turn,
              status: s.status, scores: s.scores, rules: s.rules || null };
   }
-  if (game === 'garden') {
-    const gd = s.players.map(function (p) { return p.dev; });
-    return { gid: s.gid, status: s.status, names: s.players.map(function (p) { return p.name; }), devs: gd,
-             act: s.status === 'shape' ? (gd[s.turn] || '') : '', day: s.day };
-  }
   const devs = s.players.map(function (p) { return p.dev; });
   let act = '';
-  if (game === 'thief' || game === 'cipher') {
+  if (game === 'thief' || game === 'cipher' || game === 'crossword') {
     if (s.status === 'play') act = devs[s.turn] || '';
     else if (s.status === 'setup') act = s.players.filter(function (p) { return !p.enc; }).map(function (p) { return p.dev; }).join(',');   // still picking a secret word
   } else if (game === 'wheelhouse') {
@@ -258,13 +249,41 @@ function closeGame_(game, slot, gid) {
   }
 }
 
+// ---------- Crossword: words already used ----------
+// Games/Crossword/crossword-used.txt holds every answer any crossword has used, space separated, oldest first.
+// A new puzzle only picks answers that aren't in it, and records its own, so no word (or clue) is ever repeated
+// between games, whichever phone makes them. If the page ever runs out of fresh words it sends reset = true and the list starts over.
+function usedFile_() {
+  const parent = parent_('crossword'), it = parent.getFilesByName('crossword-used.txt');
+  return it.hasNext() ? it.next() : parent.createFile('crossword-used.txt', '', 'text/plain');
+}
+function getUsed() {
+  return usedFile_().getBlob().getDataAsString();
+}
+function addUsed(words, reset) {
+  const clean = (words || []).map(function (w) { return String(w).toUpperCase(); }).filter(function (w) { return /^[A-Z]{3,15}$/.test(w); });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const f = usedFile_();
+    const have = reset ? [] : f.getBlob().getDataAsString().split(' ').filter(String);
+    const seen = {};
+    have.forEach(function (w) { seen[w] = 1; });
+    clean.forEach(function (w) { if (!seen[w]) { seen[w] = 1; have.push(w); } });
+    f.setContent(have.join(' '));
+    return have.length;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ---------- Winners' Log ----------
 // Every finished 2-player game becomes one row of the "Winners' Log" sheet in the Games folder.
 // It's written here, when the save that finishes the game arrives, so it doesn't matter which phone
 // made it. The key (game:gid) is checked under the save lock, so a game is never logged twice.
 // Games against the computer and pass-and-play games (one phone, no server) aren't logged.
 // Tallies are counted from the rows by the pages, so deleting a row takes that game out of the record.
-const LOG_GAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', thief: 'Letter Thief', cipher: 'Cipher Strike' };
+const LOG_GAMES = { tilework: 'Tilework', wheelhouse: 'Wheelhouse', answers: 'Answers', crossword: 'Crossword', thief: 'Letter Thief', cipher: 'Cipher Strike' };
 const LOG_NAME = "Winners' Log";
 const LOG_HEAD = ['Key', 'Game', 'Finished', 'Tab', 'Player 1 id', 'Player 1 name', 'Player 1 score',
   'Player 2 id', 'Player 2 name', 'Player 2 score', 'Winner id (blank = tie)', 'How it ended', 'Moves', 'Extra'];
@@ -301,7 +320,7 @@ function result_(game, s) {
     seats = s.players.map(function (p) { return { dev: p.dev, name: p.name || '', score: (game === 'wheelhouse' ? p.total : p.score) || 0 }; });
     moves = s.moves || (s.log || []).slice().reverse();   // .log is newest first and short
     end = s.endNote || (s.log || [])[0] || '';
-    extra = { rounds: s.settings && s.settings.rounds };
+    extra = game === 'crossword' ? { size: s.size, words: (s.entries || []).length } : { rounds: s.settings && s.settings.rounds };
   }
   return seats.length === 2 ? { seats: seats, moves: moves, end: end, extra: extra } : null;
 }
@@ -381,7 +400,6 @@ function overview(dev, allProps) {
       const seat = g.devs.indexOf(dev);
       if (seat < 0) { if (g.status === 'lobby' && g.devs.length < 2) n++; return; }
       if (g.status === 'over' || g.status === 'lobby') return;
-      if (game === 'garden' && g.status === 'grow') { if (g.day < gardenDay_()) n++; return; }   // a new garden day is waiting
       const acts = String(g.act || '').split(',');
       if (acts.indexOf(dev) >= 0 || g.act === '*') n++;
       else if (seat === 0 && acts.some(function (a) { return a.indexOf('bot') === 0; })) n++;

@@ -44,6 +44,23 @@ function makeBackend() {
       getFolderById: id => { if (!folders[id]) throw new Error('No folder ' + id); return folders[id]; },
       getFileById: id => { if (!files[id]) throw new Error('No file ' + id); return files[id]; }
     },
+    // A pretend Sheet for the Winners' Log: rows of values, just enough of the API for Code.gs.
+    SpreadsheetApp: (function () {
+      const sheets = {};
+      function mkSheet() {
+        const rows = [];
+        const sh = { rows, setName() {}, setFrozenRows() {}, appendRow: r => { rows.push(r); }, getLastRow: () => rows.length, getParent: () => ({ getUrl: () => 'drive://log' }),
+          getRange(a, b, c, d) {
+            if (typeof a === 'string') return { setNumberFormat() {}, createTextFinder: key => ({ matchEntireCell() { return this; }, findNext: () => { const i = rows.findIndex(r => String(r[0]) === String(key)); return i < 0 ? null : { getRow: () => i + 1 }; } }) };
+            return { setFontWeight() {}, getValues: () => rows.slice(a - 1, a - 1 + (c || 1)).map(r => { const o = []; for (let k = 0; k < (d || 1); k++) o.push(r[b - 1 + k] === undefined ? '' : r[b - 1 + k]); return o; }) };
+          } };
+        return sh;
+      }
+      return {
+        create: name => { const id = 'S' + Object.keys(sheets).length, sh = mkSheet(); sheets[id] = { getId: () => id, getSheets: () => [sh] }; files[id] = { id, moveTo() {} }; return sheets[id]; },
+        openById: id => { if (!sheets[id]) throw new Error('No sheet'); return sheets[id]; }
+      };
+    })(),
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ t, setMimeType() { return this; }, getContent() { return this.t; } }) },
     UrlFetchApp: { fetch: (url) => {
@@ -56,7 +73,7 @@ function makeBackend() {
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'server', 'Code.gs'), 'utf8'), ctx);
-  return { ctx, props, folders: { tw: twSave, wh: whSave, an: anSave }, calls: 0 };
+  return { ctx, props, folders: { tw: twSave, wh: whSave, an: anSave }, allFolders: folders, calls: 0 };
 }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png' };

@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crossword</title>
+<style>
+  :root{
+    --bg:#10162b; --panel:#1a2342; --panel2:#222d55; --ink:#eef1ff; --dim:#9aa4c9;
+    --gold:#ffcf4a; --ok:#35c46a; --red:#e5484d;
+    --p0:#3d7bff; --p1:#e5484d;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.primary{background:var(--gold);color:#1b1400;font-weight:700}
+  select{font:inherit;font-size:16px;color:var(--ink);background:#0a0f24;border:1px solid #2a3566;border-radius:10px;padding:10px 12px;width:100%}
+  #app{max-width:560px;margin:0 auto;padding:6px 10px calc(env(safe-area-inset-bottom) + 28px)}
+  header{display:flex;align-items:center;gap:6px;margin-bottom:6px;min-height:36px}
+  header #ver{font-size:11px;color:var(--dim);white-space:nowrap}
+  header #menuBtn{padding:4px 8px;font-size:20px;background:transparent;margin-left:0}
+
+  /* tabs: Game 1-5, evenly spread so all five fit without scrolling */
+  #tabs{display:flex;gap:5px;flex:1;min-width:0}
+  #tabs button{flex:1 1 0;min-width:0;padding:10px 0 4px;border-radius:10px;font-size:13px;font-weight:700;background:var(--panel);color:var(--dim);position:relative;white-space:nowrap;text-align:center}
+  #tabs button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 2px var(--gold)}
+  #tabs button .dot{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  #tabs button .chk{position:absolute;top:0;right:3px;font-size:10px}
+  #tabs button.add{flex:0 0 38px;font-weight:800;color:var(--gold)}
+
+  /* players: blue (first seat) vs red (second seat) */
+  #players{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 6px}
+  .p{background:var(--panel);border-radius:10px;padding:2px 8px 2px 10px;border:2px solid transparent;min-width:0;line-height:1.2;position:relative;overflow:hidden}
+  .p::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+  .p.s0::before{background:var(--p0)}
+  .p.s1::before{background:var(--p1)}
+  .p.on{border-color:var(--gold);background:#2a2a46}
+  .p .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+  .p .bk{font-size:18px;font-weight:800;color:var(--gold);display:flex;align-items:baseline;gap:6px}
+  .p .tt{font-size:12px;color:var(--dim);font-weight:400}
+  .p.me .nm::after{content:" (you)";color:var(--dim);font-weight:400;font-size:12px}
+
+
+  /* the clue bar: ◀ clue ▶ */
+  #clueBar{display:flex;align-items:stretch;gap:6px;margin-bottom:6px}
+  #clueBar button.nav{flex:0 0 40px;padding:0;font-size:18px;background:var(--panel)}
+  #clue{flex:1;min-width:0;background:var(--panel);border-radius:10px;padding:4px 10px;min-height:48px;font-size:15px;line-height:1.25;cursor:pointer;display:flex;flex-direction:column;justify-content:center}
+  #clue b{color:var(--gold);font-size:13px;letter-spacing:.02em}
+  #clue .tx{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #clue.done{opacity:.85}
+
+  /* the grid; cell size is set from the script so the whole turn fits on the phone */
+  #gridWrap{display:flex;justify-content:center;margin:0 auto 6px}
+  #grid{display:grid;gap:2px;padding:4px;background:#0b1020;border-radius:10px;border:2px solid #2a3566;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  .cx{width:var(--cs);height:var(--cs);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:calc(var(--cs) * .56);background:#dfe3f2;color:#1a1f33;position:relative;cursor:pointer}
+  .cx.blk{background:#0b1020;cursor:default}
+  .cx.o0{background:var(--p0);color:#fff}
+  .cx.o1{background:var(--p1);color:#fff}
+  .cx.inw{background:#fff1b8}
+  .cx.o0.inw{background:#6c9bff}
+  .cx.o1.inw{background:#f0777b}
+  .cx.cur{box-shadow:inset 0 0 0 3px var(--gold)}
+  .cx.dr{color:#b45309;font-style:italic}
+  .cx.miss{color:#7b83a6;background:#c4c9dc}
+  .cx .n{position:absolute;left:2px;top:0;font-size:calc(var(--cs) * .28);font-weight:700;line-height:1.1;color:#4a5170}
+  .cx.o0 .n,.cx.o1 .n{color:#ffffffc0}
+  .cx.fresh{animation:pop .6s}
+  @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+
+  #kbd{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+  #kbd .kr{display:flex;gap:3px;justify-content:center}
+  #kbd button{flex:1 1 0;min-width:0;max-width:44px;padding:0;height:36px;font-size:17px;font-weight:700;border-radius:8px;background:var(--panel2)}
+  #kbd button.wide{flex:1.5 1 0;max-width:62px}
+
+  #actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+  #actions button{flex:1 1 0;min-width:0;padding:9px 6px;font-size:16px}
+  #actions button{white-space:nowrap}
+  #actions button.primary{flex:1.5 1 0}
+  #actions button.rv{flex:1.3 1 0}
+  #actions .note{width:100%;text-align:center;color:var(--dim);font-size:16px}
+  #status{font-size:14px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 2px}
+  #status.wrap{white-space:normal;font-size:15px;color:var(--ink)}
+  #status b{color:var(--ink)}
+  #status .me{color:var(--gold)}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:0}
+  .sw.s0{background:var(--p0)}
+  .sw.s1{background:var(--p1)}
+
+  .card{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:20px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .seat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3566}
+  .small{font-size:15px;color:var(--dim)}
+  .center{text-align:center}
+  .cl{padding:7px 8px;border-radius:8px;margin-bottom:4px;background:var(--panel2);font-size:15px;cursor:pointer}
+  .cl.sel{box-shadow:inset 0 0 0 2px var(--gold)}
+  .cl.dn{opacity:.6}
+  .cl.dn .t{text-decoration:line-through}
+  .cl b{color:var(--gold);margin-right:4px}
+
+  #sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+  #sheet.hidden{display:none}
+  #sheet .in{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 28px);max-height:85vh;overflow:auto}
+  #sheet h3{margin:4px 0 10px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#000d;padding:10px 14px;border-radius:10px;z-index:20;display:none;max-width:90vw;font-size:16px}
+  .hidden{display:none !important}
+  @media (min-width:700px){
+    #app{max-width:640px;padding-bottom:40px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="tabs"></div>
+    <small id="ver"></small>
+    <button id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div id="lobby"></div>
+  <div id="game" class="hidden">
+    <div id="players"></div>
+    <div id="clueBar"><button class="nav" id="bPrev" aria-label="Previous clue">◀</button><div id="clue"></div><button class="nav" id="bNext" aria-label="Next clue">▶</button></div>
+    <div id="gridWrap"><div id="grid"></div></div>
+    <div id="kbd"></div>
+    <div id="actions"></div>
+    <div id="status"></div>
+  </div>
+</div>
+<div id="sheet" class="hidden"><div class="in" id="sheetIn"></div></div>
+<div id="toast"></div>
+
+<script src="../config.js"></script>
+<script src="../shim.js" data-game="crossword"></script>
+<script>
+// ---------- versions (bump on every change) ----------
+const VERSIONS = [
+  ['1.0', '2026-11-20', 'First version, replacing Gardens: a crossword for two. A grid is built from a bank of about 5,000 clues (pick Small, Medium or Large), and no word or clue is ever used twice, in any game. On your turn pick a clue and type the answer: a right answer claims the word for 10 points a letter, and any other word it finishes is yours too. A wrong guess just passes the turn. Reveal a letter (-10) if you are stuck. Up to 5 games at once, saved on Drive like the other games.']
+];
+
+// ---------- rules ----------
+const MAX_SEATS = 2, PER_LETTER = 10, REVEAL_COST = 10, IDLE_END = 6;
+// Grid sizes: the biggest square the words are packed into, how many words to aim for, and the longest word allowed.
+const SIZES = {
+  small:  { label: 'Small',  n: 9,  words: 8,  maxLen: 9 },
+  medium: { label: 'Medium', n: 11, words: 12, maxLen: 10 },
+  large:  { label: 'Large',  n: 13, words: 16, maxLen: 11 }
+};
+
+// ---------- clue bank ----------
+// bank.txt next to this page: one line per clue, "clue :: ANSWER" (letters only, 3 to 11 of them). About 5,000
+// answers: a few hundred hand-written clues first, then dictionary definitions. Loaded once, when a game is made.
+// Every answer is used in at most one game, ever (the Games API keeps the list of used answers).
+const BANK_URL = 'bank.txt';
+let BANKMAP = null, bankP = null;
+function parseBank(text) {
+  const m = {};
+  text.split('\n').forEach(function (l) {
+    const k = l.lastIndexOf(' :: ');
+    if (k < 0) return;
+    const clue = l.slice(0, k).trim(), a = l.slice(k + 4).trim().toUpperCase();
+    if (!clue || !/^[A-Z]{3,11}$/.test(a)) return;
+    (m[a] = m[a] || []).push(clue);
+  });
+  return m;
+}
+function loadBank() {
+  if (BANKMAP) return Promise.resolve(BANKMAP);
+  if (!bankP) bankP = fetch(BANK_URL, { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error('bank ' + r.status); return r.text(); })
+    .then(function (t) { BANKMAP = parseBank(t); if (Object.keys(BANKMAP).length < 500) { BANKMAP = null; throw new Error('bank too small'); } return BANKMAP; })
+    .catch(function (e) { bankP = null; throw e; });
+  return bankP;
+}
+function api(fn, args) {   // a Games API call as a promise
+  return new Promise(function (ok, bad) { const r = google.script.run.withSuccessHandler(ok).withFailureHandler(bad); r[fn].apply(r, args || []); });
+}
+
+// ---------- device / local state ----------
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let DEV = lsGet('crossword-device');
+if (!DEV) { DEV = 'd' + Math.random().toString(36).slice(2, 10); lsSet('crossword-device', DEV); }
+
+let S = null;            // current game state (from server)
+let busy = false;        // waiting on a save
+let selE = -1;           // index of the clue being worked on (local only)
+let draft = '';          // letters typed into that clue's empty squares (local only)
+let lastTurnKey = '';
+const MAX_GAMES = 5;
+let curSlot = Math.min(Math.max(parseInt(lsGet('crossword-slot') || '0', 10) || 0, 0), MAX_GAMES - 1);
+let GAMES = [];          // summaries of every tab's game, from the server
+let loaded = false;      // have we heard from the server for this tab yet
+
+const $ = function (id) { return document.getElementById(id); };
+const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const av = function (p) { return window.GamesApp ? esc(GamesApp.avatar(p.dev, p.name)) : ''; };
+
+// ---------- server ----------
+// Answers are never saved as plain text: each entry's ans lives only in memory, and the save file holds
+// enc (XORed with a keystream seeded by the game id, then base64). Not real security, just enough that
+// peeking at the Drive file doesn't give the answers away.
+function keystream(seed, n) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const out = [];
+  for (let i = 0; i < n; i++) { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; out.push(h & 255); }
+  return out;
+}
+function encText(t, seed) {
+  const k = keystream('cw:' + seed, t.length);
+  let b = '';
+  for (let i = 0; i < t.length; i++) b += String.fromCharCode((t.charCodeAt(i) & 255) ^ k[i]);
+  return btoa(b);
+}
+function decText(e, seed) {
+  const b = atob(e), k = keystream('cw:' + seed, b.length);
+  let t = '';
+  for (let i = 0; i < b.length; i++) t += String.fromCharCode(b.charCodeAt(i) ^ k[i]);
+  return t;
+}
+function hide(ns) {           // copy for saving: answers encoded, plain text dropped
+  const out = JSON.parse(JSON.stringify(ns));
+  (out.entries || []).forEach(function (e, i) {
+    if (typeof e.ans === 'string') { e.enc = encText(e.ans, out.gid + ':' + i); delete e.ans; }
+  });
+  return out;
+}
+function reveal(st) {         // after loading: decode the answers, and use current login names
+  if (st && window.GamesApp) GamesApp.fixNames(st.players);
+  ((st && st.entries) || []).forEach(function (e, i) {
+    if (e.enc && typeof e.ans !== 'string') { try { e.ans = decText(e.enc, st.gid + ':' + i); } catch (x) { e.ans = ''; } }
+  });
+  return st;
+}
+
+// Every call is tagged with the tab it was for; answers for a tab we've since left are ignored.
+const store = {
+  get: function (cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { if (slot !== curSlot) return; GAMES = r.games || GAMES; cb(reveal(r.state)); })
+      .withFailureHandler(function (e) { if (slot === curSlot) cb(undefined, e); }).getState(slot);
+  },
+  save: function (ns, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot !== curSlot) { busy = false; renderTabs(); return; } cb(r.ok, reveal(r.state)); })
+      .withFailureHandler(function (e) { toast('Save failed: ' + (e && e.message || e)); cb(false, undefined); })
+      .saveState(JSON.stringify(hide(ns)), slot);
+  },
+  close: function (gid, cb) {
+    const slot = curSlot;
+    google.script.run.withSuccessHandler(function (r) { GAMES = r.games || GAMES; if (slot === curSlot) cb(reveal(r.state)); else renderTabs(); })
+      .withFailureHandler(function (e) { toast('Could not close: ' + (e && e.message || e)); }).closeGame(slot, gid);
+  }
+};
+
+function commit(ns) {
+  if (busy) return;
+  busy = true; render();
+  store.save(ns, function (ok, saved) {
+    busy = false;
+    if (!ok && saved !== undefined) toast('Someone moved first, so the game refreshed.');
+    if (saved !== undefined) apply(saved);
+    else render();
+  });
+}
+
+function switchTab(i) {
+  if (i === curSlot || busy) return;
+  curSlot = i; lsSet('crossword-slot', String(i));
+  S = null; loaded = false; selE = -1; draft = ''; lastTurnKey = '';
+  closeSheet();
+  render();
+  store.get(function (st) { if (st !== undefined) apply(st); });
+}
+function tabInfo(g) {
+  if (!g) return { label: 'New game', dot: false };
+  if (window.GamesApp) g = Object.assign({}, g, { names: g.names.map(function (n, i) { return GamesApp.nameOf(g.devs[i], n); }) });
+  const mine = g.devs.indexOf(DEV) >= 0;
+  if (g.status === 'lobby') return mine ? { label: 'Lobby ' + g.names.length + '/' + MAX_SEATS, dot: false } : { label: 'Join ' + g.names[0], dot: g.names.length < MAX_SEATS };
+  const others = g.names.filter(function (n, i) { return g.devs[i] !== DEV; });
+  const label = mine ? 'vs ' + others.join(' & ') : g.names.join(' & ');
+  const dot = mine && (g.act === DEV || g.act === '*');
+  return { label: label, dot: dot, over: g.status === 'over' };
+}
+function renderTabs() {
+  const used = [];
+  for (let i = 0; i < MAX_GAMES; i++) if (GAMES[i] || i === curSlot) used.push(i);
+  const free = GAMES.length ? (function () { for (let i = 0; i < MAX_GAMES; i++) if (!GAMES[i] && i !== curSlot) return i; return -1; })() : -1;
+  $('tabs').innerHTML = used.map(function (i) {
+    const t = tabInfo(i === curSlot && loaded ? (S ? { devs: S.players.map(function (p) { return p.dev; }), names: S.players.map(function (p) { return p.name; }), status: S.status, act: (GAMES[i] || {}).act } : null) : GAMES[i]);
+    return '<button data-tab="' + i + '" class="' + (i === curSlot ? 'on' : '') + '" title="' + esc(t.label) + '" aria-label="Game ' + (i + 1) + ': ' + esc(t.label) + (t.dot ? ', your move' : '') + '">Game ' + (i + 1) + (t.over ? '<span class="chk">✓</span>' : '') + (t.dot && i !== curSlot ? '<span class="dot"></span>' : '') + '</button>';
+  }).join('') + (free >= 0 && GAMES[curSlot] ? '<button class="add" data-tab="' + free + '" title="Start another game">+</button>' : '');
+}
+$('tabs').onclick = function (e) { const b = e.target.closest('button'); if (b) switchTab(+b.dataset.tab); };
+
+function next() {           // copy of S with moveNo bumped
+  const ns = JSON.parse(JSON.stringify(S));
+  ns.moveNo = S.moveNo + 1;
+  return ns;
+}
+
+function poll() {
+  if (busy || document.hidden) return;
+  store.get(function (st) { if (st !== undefined && !busy) apply(st); });
+}
+
+function apply(st) {
+  const firstLoad = !loaded;
+  const changed = firstLoad || (!S !== !st) || (S && st && (st.gid !== S.gid || st.moveNo !== S.moveNo));
+  const fresh = !firstLoad && S && st && S.gid === st.gid && st.moveNo !== S.moveNo;
+  const sameGame = S && st && S.gid === st.gid;
+  loaded = true;
+  S = st;
+  renderTabs();
+  if (!changed) return;
+  draft = '';
+  if (!sameGame) selE = -1;
+  fixSelection();
+  render(fresh);
+  buzzIfMyTurn();
+}
+
+// ---------- helpers ----------
+function me() { return S && S.players ? S.players.findIndex(function (p) { return p.dev === DEV; }) : -1; }
+function myTurn() { return S && S.status === 'play' && me() === S.turn; }
+function name(i) { return S.players[i] ? S.players[i].name : '?'; }
+function addLog(ns, line) { ns.log = [line].concat(ns.log || []).slice(0, 8); }
+function newGid() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function lab(e) { return e.num + ' ' + (e.dir === 'A' ? 'Across' : 'Down'); }
+function cellsOf(st, e) {
+  const a = [];
+  for (let k = 0; k < e.len; k++) a.push((e.r + (e.dir === 'D' ? k : 0)) * st.w + e.c + (e.dir === 'A' ? k : 0));
+  return a;
+}
+function blanksOf(e) { return cellsOf(S, e).filter(function (i) { return S.known[i] === ' '; }); }
+function setKnown(ns, i, ch) { ns.known = ns.known.slice(0, i) + ch + ns.known.slice(i + 1); }
+function isOpen(i) { return S.mask[i] !== '#'; }
+function openEntries() { const r = []; S.entries.forEach(function (e, i) { if (e.by < 0) r.push(i); }); return r; }
+
+// Keep the clue being worked on pointing at something sensible.
+function fixSelection() {
+  if (!S || !S.entries) { selE = -1; return; }
+  if (selE >= 0 && selE < S.entries.length && (S.entries[selE].by < 0 || S.status === 'over')) return;
+  const o = openEntries();
+  selE = o.length ? o[0] : (S.entries.length ? 0 : -1);
+}
+
+// ---------- building a crossword ----------
+function usedList() { try { return JSON.parse(lsGet('crossword-used') || '[]') || []; } catch (e) { return []; } }
+function rememberUsed(answers) { lsSet('crossword-used', JSON.stringify(usedList().concat(answers).slice(-300))); }
+
+// Can word w go at row r, column c, running d ('A' across or 'D' down) on the n x n letter grid g?
+// Returns the number of squares it shares with words already there, or -1 if it can't go.
+function canPlace(g, n, w, r, c, d) {
+  const dr = d === 'D' ? 1 : 0, dc = d === 'A' ? 1 : 0;
+  const er = r + dr * (w.length - 1), ec = c + dc * (w.length - 1);
+  if (r < 0 || c < 0 || er >= n || ec >= n) return -1;
+  const at = function (rr, cc) { return rr < 0 || cc < 0 || rr >= n || cc >= n ? '' : g[rr * n + cc]; };
+  if (at(r - dr, c - dc) || at(er + dr, ec + dc)) return -1;       // the word must not run on into another letter
+  let cross = 0;
+  for (let k = 0; k < w.length; k++) {
+    const rr = r + dr * k, cc = c + dc * k, ch = g[rr * n + cc];
+    if (ch) { if (ch !== w[k]) return -1; cross++; }
+    else if (at(rr + dc, cc + dr) || at(rr - dc, cc - dr)) return -1;   // a new letter can't sit beside another word
+  }
+  return cross;
+}
+
+// Greedy packing: start with one word near the middle, then keep hooking words onto letters already there.
+function buildGrid(n, pool, target) {
+  const g = new Array(n * n).fill('');
+  const placed = [];
+  const put = function (w, r, c, d) {
+    for (let k = 0; k < w.length; k++) g[(r + (d === 'D' ? k : 0)) * n + c + (d === 'A' ? k : 0)] = w[k];
+    placed.push({ w: w, r: r, c: c, d: d });
+  };
+  const firstIdx = pool.findIndex(function (w) { return w.length >= 6 && w.length <= n - 1; });
+  if (firstIdx < 0) return null;
+  const first = pool[firstIdx];
+  put(first, Math.floor(n / 2), Math.floor((n - first.length) / 2), 'A');
+  for (let pass = 0; pass < 2 && placed.length < target; pass++) {
+    for (let p = 0; p < pool.length && placed.length < target; p++) {
+      const w = pool[p];
+      if (placed.some(function (x) { return x.w === w; })) continue;
+      let best = [], bestScore = 0;
+      placed.forEach(function (pw) {
+        for (let a = 0; a < w.length; a++) for (let b = 0; b < pw.w.length; b++) {
+          if (w[a] !== pw.w[b]) continue;
+          const d = pw.d === 'A' ? 'D' : 'A';
+          const r = d === 'D' ? pw.r - a : pw.r + b, c = d === 'D' ? pw.c + b : pw.c - a;
+          const x = canPlace(g, n, w, r, c, d);
+          if (x < 1 || x === w.length) continue;
+          if (x > bestScore) { bestScore = x; best = [{ r: r, c: c, d: d }]; } else if (x === bestScore) best.push({ r: r, c: c, d: d });
+        }
+      });
+      if (best.length) { const s = best[Math.floor(Math.random() * best.length)]; put(w, s.r, s.c, s.d); }
+    }
+  }
+  return { g: g, placed: placed };
+}
+
+// Turn a packed grid into a puzzle: crop to the words, number the squares, list the entries.
+function toPuzzle(n, built, bank) {
+  const g = built.g;
+  let r0 = n, r1 = -1, c0 = n, c1 = -1;
+  for (let i = 0; i < g.length; i++) if (g[i]) {
+    const r = Math.floor(i / n), c = i % n;
+    r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+  }
+  const h = r1 - r0 + 1, w = c1 - c0 + 1;
+  const cell = function (r, c) { return r < 0 || c < 0 || r >= h || c >= w ? '' : g[(r + r0) * n + c + c0]; };
+  const mask = [];
+  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) mask.push(cell(r, c) ? '.' : '#');
+  const entries = [];
+  let num = 0;
+  const words = {};
+  built.placed.forEach(function (p) { words[p.w] = 1; });
+  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
+    if (!cell(r, c)) continue;
+    const startA = !cell(r, c - 1) && cell(r, c + 1), startD = !cell(r - 1, c) && cell(r + 1, c);
+    if (!startA && !startD) continue;
+    num++;
+    [['A', startA, 0, 1], ['D', startD, 1, 0]].forEach(function (x) {
+      if (!x[1]) return;
+      let s = '', k = 0;
+      while (cell(r + x[2] * k, c + x[3] * k)) { s += cell(r + x[2] * k, c + x[3] * k); k++; }
+      entries.push({ num: num, dir: x[0], r: r, c: c, len: s.length, ans: s });
+    });
+  }
+  // every run of letters must be one of the words we meant to place (and each word must appear)
+  if (entries.some(function (e) { return !words[e.ans]; })) return null;
+  if (entries.length !== built.placed.length) return null;
+  entries.forEach(function (e) {
+    const clues = bank[e.ans];
+    e.clue = clues[Math.floor(Math.random() * clues.length)];
+    e.by = -1; e.t = 0;
+  });
+  return { w: w, h: h, mask: mask.join(''), known: new Array(w * h + 1).join(' '), entries: entries };
+}
+
+// Try many packings and keep the one with the most words (then the tightest).
+function makePuzzle(sizeKey, usedSet) {
+  let used = {};
+  const spec = SIZES[sizeKey] || SIZES.medium, bank = BANKMAP;
+  usedList().forEach(function (a) { used[a] = 1; });
+  Object.keys(usedSet || {}).forEach(function (a) { used[a] = 1; });
+  let all = Object.keys(bank).filter(function (a) { return a.length <= spec.maxLen; });
+  const unused = all.filter(function (a) { return !used[a]; });
+  let restart = false;
+  if (unused.length < 250) { restart = true; used = {}; }      // the bank has run dry: start over (the used list restarts too)
+  else all = unused;
+  let best = null;
+  for (let attempt = 0; attempt < 400; attempt++) {
+    shuffle(all);
+    const pool = all.slice(0, 160);
+    // long words first make better skeletons, but keep it random enough that games differ
+    pool.sort(function (a, b) { return (b.length + Math.random() * 3) - (a.length + Math.random() * 3); });
+    const built = buildGrid(spec.n, pool, spec.words);
+    if (!built) continue;
+    const pz = toPuzzle(spec.n, built, bank);
+    if (!pz) continue;
+    const score = pz.entries.length * 100 - pz.w * pz.h;
+    if (!best || score > best.score) best = { pz: pz, score: score };
+    if (best.pz.entries.length >= spec.words && attempt > 40) break;
+  }
+  if (!best || best.pz.entries.length < Math.min(6, spec.words)) return null;
+  best.pz.restart = restart;
+  return best.pz;
+}
+
+// ---------- actions ----------
+function freshState(nm, sizeKey, pz) {
+  return {
+    app: 'crossword', gid: newGid(), moveNo: 0, status: 'lobby', size: sizeKey,
+    players: [{ dev: DEV, name: nm, score: 0 }], turn: 0,
+    w: pz.w, h: pz.h, mask: pz.mask, known: pz.known, entries: pz.entries,
+    claims: 0, idle: 0, log: [nm + ' started a new game.'], moves: [], endNote: ''
+  };
+}
+// Build a puzzle from words nobody has used yet, record them as used (on Drive, so both phones agree), then call cb(puzzle).
+function prepare(sizeKey, cb) {
+  if (busy) return;
+  busy = true; render();
+  const fail = function (msg) { busy = false; render(); toast(msg); };
+  loadBank().then(function () {
+    return api('getUsed', []).then(function (t) { const u = {}; String(t || '').split(' ').forEach(function (w) { if (w) u[w] = 1; }); return u; }, function () { return {}; });
+  }).then(function (used) {
+    const pz = makePuzzle(sizeKey, used);
+    if (!pz) return fail('Couldn\'t build a crossword just now. Try again.');
+    const words = pz.entries.map(function (e) { return e.ans; });
+    rememberUsed(words);
+    api('addUsed', [words, pz.restart]).then(function () { return 0; }, function () { return 0; }).then(function () { busy = false; cb(pz); });
+  }, function () { fail('Couldn\'t load the clue bank. Check your connection and try again.'); });
+}
+function newGame(nm, sizeKey) {
+  prepare(sizeKey, function (pz) { commit(freshState(nm, sizeKey, pz)); });
+}
+function closeGame() {
+  if (!S || busy) return;
+  busy = true; render();
+  store.close(S.gid, function (st) { busy = false; apply(st); toast('Game closed. This tab is free.'); });
+}
+function begin(ns) {          // both seats filled: who goes first is random
+  ns.status = 'play';
+  ns.turn = Math.floor(Math.random() * ns.players.length);
+  addLog(ns, ns.players[ns.turn].name + ' goes first.');
+}
+function join(nm) {
+  if (S.players.length >= MAX_SEATS) return;
+  const ns = next();
+  ns.players.push({ dev: DEV, name: nm, score: 0 });
+  addLog(ns, nm + ' joined.');
+  begin(ns);
+  commit(ns);
+}
+function claimSeat(i) {
+  const ns = next();
+  ns.players[i].dev = DEV;
+  addLog(ns, ns.players[i].name + ' is now playing on this phone.');
+  commit(ns);
+}
+function rematch() {
+  prepare(S.size, function (pz) {
+    const ns = next();
+    ns.gid = newGid(); ns.moveNo = 0;
+    ns.players.forEach(function (p) { p.score = 0; });
+    ns.w = pz.w; ns.h = pz.h; ns.mask = pz.mask; ns.known = pz.known; ns.entries = pz.entries;
+    ns.claims = 0; ns.idle = 0; ns.log = []; ns.moves = []; ns.endNote = '';
+    selE = -1;
+    begin(ns);
+    commit(ns);
+  });
+}
+function finish(ns, why) {
+  ns.status = 'over';
+  const a = ns.players[0], b = ns.players[1];
+  const res = a.score === b.score ? 'It\'s a tie at ' + a.score + '.' : (a.score > b.score ? a : b).name + ' wins ' + Math.max(a.score, b.score) + ' to ' + Math.min(a.score, b.score) + '.';
+  ns.endNote = why + ' ' + res;
+  addLog(ns, ns.endNote);
+}
+
+// Any word whose squares are all filled now belongs to the player who filled the last one.
+function claimFinished(ns, m) {
+  const got = [];
+  ns.entries.forEach(function (e) {
+    if (e.by >= 0) return;
+    if (cellsOf(ns, e).every(function (i) { return ns.known[i] !== ' '; })) {
+      e.by = m; e.t = ++ns.claims;
+      ns.players[m].score += PER_LETTER * e.len;
+      got.push(e);
+    }
+  });
+  return got;
+}
+
+// End a turn: either the game is over (everything claimed, or too many turns with nothing claimed), or it's the other player's.
+function endTurn(ns, claimed) {
+  ns.idle = claimed ? 0 : (ns.idle || 0) + 1;
+  if (ns.entries.every(function (e) { return e.by >= 0; })) finish(ns, 'Every word is solved.');
+  else if (ns.idle >= IDLE_END) finish(ns, IDLE_END + ' turns in a row without a new word.');
+  else ns.turn = 1 - ns.turn;
+}
+
+function typedWord(e) {      // the entry's letters with the typed ones filled in (blank squares only)
+  let w = '', di = 0;
+  cellsOf(S, e).forEach(function (i) { w += S.known[i] !== ' ' ? S.known[i] : (draft[di++] || '_'); });
+  return w;
+}
+function guess() {
+  if (!myTurn() || busy || selE < 0) return;
+  const e = S.entries[selE];
+  if (e.by >= 0) return;
+  const blanks = blanksOf(e);
+  if (draft.length !== blanks.length) return toast('Fill in all ' + blanks.length + ' empty squares first.');
+  const w = typedWord(e), ns = next(), m = ns.turn, p = ns.players[m], ne = ns.entries[selE];
+  const cells = cellsOf(ns, ne);
+  if (w === e.ans) {
+    const placed = [];
+    cells.forEach(function (i) { if (ns.known[i] === ' ') { setKnown(ns, i, w[cells.indexOf(i)]); placed.push(i); } });
+    const got = claimFinished(ns, m);
+    const pts = got.reduce(function (t, x) { return t + PER_LETTER * x.len; }, 0);
+    const also = got.filter(function (x) { return x !== ne; });
+    addLog(ns, p.name + ' solved ' + lab(ne) + ' (' + w + ') for ' + PER_LETTER * ne.len + '.');
+    also.forEach(function (x) { addLog(ns, '…which also finished ' + lab(x) + ' (' + x.ans + '), +' + PER_LETTER * x.len + '.'); });
+    ns.moves = (ns.moves || []).concat([{ p: m, t: lab(ne) + ' ' + w + ' +' + pts + (also.length ? ' (also ' + also.map(function (x) { return lab(x); }).join(', ') + ')' : ''), c: placed }]);
+    endTurn(ns, true);
+  } else {
+    addLog(ns, p.name + ' guessed ' + lab(ne) + ' and missed.');
+    ns.moves = (ns.moves || []).concat([{ p: m, t: 'Missed ' + lab(ne) }]);
+    endTurn(ns, false);
+  }
+  draft = '';
+  commit(ns);
+}
+function revealLetter() {
+  if (!myTurn() || busy || selE < 0) return;
+  const e = S.entries[selE];
+  const blanks = blanksOf(e);
+  if (e.by >= 0 || blanks.length < 2) return;
+  const ns = next(), m = ns.turn, p = ns.players[m], ne = ns.entries[selE];
+  const i = blanks[Math.floor(Math.random() * blanks.length)];
+  const ch = e.ans[cellsOf(S, e).indexOf(i)];
+  setKnown(ns, i, ch);
+  p.score -= REVEAL_COST;
+  const got = claimFinished(ns, m);
+  const pts = got.reduce(function (t, x) { return t + PER_LETTER * x.len; }, 0);
+  addLog(ns, p.name + ' revealed a letter in ' + lab(ne) + ' (-' + REVEAL_COST + ').');
+  got.forEach(function (x) { addLog(ns, '…which finished ' + lab(x) + ' (' + x.ans + '), +' + PER_LETTER * x.len + ' for ' + p.name + '.'); });
+  ns.moves = (ns.moves || []).concat([{ p: m, t: 'Revealed a letter in ' + lab(ne) + ' -' + REVEAL_COST + (got.length ? ', finished ' + got.map(function (x) { return lab(x); }).join(', ') + ' +' + pts : ''), c: [i] }]);
+  endTurn(ns, got.length > 0);
+  draft = '';
+  commit(ns);
+}
+function pass() {
+  if (!myTurn() || busy) return;
+  const ns = next(), p = ns.players[ns.turn];
+  addLog(ns, p.name + ' passed.');
+  ns.moves = (ns.moves || []).concat([{ p: ns.turn, t: 'Passed' }]);
+  endTurn(ns, false);
+  draft = '';
+  commit(ns);
+}
+
+// ---------- picking clues and typing ----------
+function selectEntry(i) {
+  if (i < 0 || i >= S.entries.length) return;
+  selE = i; draft = '';
+  renderGame();
+}
+function step(dir) {          // ◀ ▶ walk through the unsolved clues (all clues once the game is over)
+  const list = S.status === 'over' ? S.entries.map(function (e, i) { return i; }) : openEntries();
+  if (!list.length) return;
+  let k = list.indexOf(selE);
+  k = k < 0 ? (dir > 0 ? 0 : list.length - 1) : (k + dir + list.length) % list.length;
+  selectEntry(list[k]);
+}
+$('bPrev').onclick = function () { if (S && S.entries) step(-1); };
+$('bNext').onclick = function () { if (S && S.entries) step(1); };
+
+function tapCell(i) {
+  if (!S || !isOpen(i)) return;
+  const cover = [];
+  S.entries.forEach(function (e, k) { if (cellsOf(S, e).indexOf(i) >= 0) cover.push(k); });
+  if (!cover.length) return;
+  const k = cover.indexOf(selE);
+  if (k >= 0 && cover.length > 1) selectEntry(cover[(k + 1) % cover.length]);          // tap again: the other direction
+  else if (k < 0) {
+    const open = cover.filter(function (x) { return S.entries[x].by < 0; });
+    selectEntry((open.length ? open : cover)[0]);
+  }
+}
+$('grid').onclick = function (e) { const c = e.target.closest('.cx'); if (c && !c.classList.contains('blk')) tapCell(+c.dataset.i); };
+
+function typeKey(ch) {
+  if (!myTurn() || busy || selE < 0) return;
+  const e = S.entries[selE];
+  if (e.by >= 0) return;
+  const nb = blanksOf(e).length;
+  if (ch === '⌫') draft = draft.slice(0, -1);
+  else if (/^[A-Z]$/.test(ch) && draft.length < nb) draft += ch;
+  else return;
+  renderGame();
+}
+document.addEventListener('keydown', function (ev) {
+  if (!S || ev.ctrlKey || ev.metaKey || ev.altKey || !$('sheet').classList.contains('hidden')) return;
+  if (ev.key === 'Backspace') typeKey('⌫');
+  else if (ev.key === 'Enter') guess();
+  else if (/^[a-zA-Z]$/.test(ev.key)) typeKey(ev.key.toUpperCase());
+});
+
+// ---------- render ----------
+function render(fresh) {
+  $('ver').textContent = 'v' + VERSIONS[0][0];
+  renderTabs();
+  if (!S || S.status === 'lobby') { $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); renderLobby(); return; }
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  fixSelection();
+  renderGame(fresh);
+}
+function renderGame(fresh) {
+  renderPlayers(); renderClue(); renderKbd(); renderActions(); renderStatus(); renderGrid(fresh);
+}
+
+function renderPlayers() {
+  const m = me();
+  const words = [0, 0];
+  S.entries.forEach(function (e) { if (e.by >= 0) words[e.by]++; });
+  $('players').innerHTML = S.players.map(function (p, i) {
+    const on = S.status === 'play' && S.turn === i;
+    return '<div class="p s' + i + (on ? ' on' : '') + (i === m ? ' me' : '') + '"><div class="nm">' + av(p) + esc(p.name) + '</div>' +
+      '<div class="bk">' + p.score + '<span class="tt">' + words[i] + ' word' + (words[i] === 1 ? '' : 's') + '</span></div></div>';
+  }).join('') + (S.players.length < 2 ? '<div class="p s1"><div class="nm small">Waiting…</div></div>' : '');
+}
+
+function renderClue() {
+  const el = $('clue');
+  if (selE < 0 || !S.entries[selE]) { el.innerHTML = '<span class="small">Tap a square to see its clue.</span>'; el.className = ''; return; }
+  const e = S.entries[selE];
+  let h = '<b>' + lab(e).toUpperCase() + ' · ' + e.len + ' letters</b><div class="tx">' + esc(e.clue) + '</div>';
+  if (e.by >= 0) h = '<b>' + lab(e).toUpperCase() + ' · ' + esc(e.ans) + '</b><div class="tx">' + esc(e.clue) + ' <span class="small">(' + esc(name(e.by)) + ')</span></div>';
+  else if (S.status === 'over') h = '<b>' + lab(e).toUpperCase() + ' · ' + esc(e.ans) + '</b><div class="tx">' + esc(e.clue) + ' <span class="small">(unsolved)</span></div>';
+  el.className = e.by >= 0 || S.status === 'over' ? 'done' : '';
+  el.innerHTML = h;
+}
+$('clue').onclick = function () { if (S && S.entries) clueSheet(); };
+
+// Size the squares so the grid, keys and buttons all fit on one phone screen.
+function fitGrid() {
+  const grid = $('grid'), wrap = $('gridWrap');
+  const n = S.w, rows = S.h;
+  grid.style.display = 'none';
+  const other = $('app').offsetHeight;                      // everything except the grid
+  grid.style.display = '';
+  const availW = $('app').clientWidth - 20 - 12, availH = window.innerHeight - other - 22;
+  const cs = Math.max(18, Math.min(Math.floor((availW - (n - 1) * 2) / n), Math.floor((availH - (rows - 1) * 2) / rows), 46));
+  grid.style.setProperty('--cs', cs + 'px');
+  grid.style.gridTemplateColumns = 'repeat(' + n + ',' + cs + 'px)';
+  wrap.style.minHeight = '';
+}
+window.addEventListener('resize', function () { if (S && S.status !== 'lobby' && S.entries) fitGrid(); });
+
+function renderGrid(fresh) {
+  const sel = selE >= 0 ? S.entries[selE] : null;
+  const selCells = sel ? cellsOf(S, sel) : [];
+  const owner = {};
+  S.entries.filter(function (e) { return e.by >= 0; }).sort(function (a, b) { return a.t - b.t; }).forEach(function (e) {
+    cellsOf(S, e).forEach(function (i) { if (owner[i] === undefined) owner[i] = e.by; });
+  });
+  const nums = {};
+  S.entries.forEach(function (e) { nums[e.r * S.w + e.c] = e.num; });
+  const typing = sel && sel.by < 0 && myTurn();
+  const solution = {};
+  if (S.status === 'over') S.entries.forEach(function (e) { cellsOf(S, e).forEach(function (i, k) { solution[i] = e.ans[k]; }); });
+  let di = 0, cur = -1;
+  const draftAt = {};
+  if (sel && sel.by < 0) selCells.forEach(function (i) { if (S.known[i] === ' ') { if (di < draft.length) draftAt[i] = draft[di]; else if (cur < 0) cur = i; di++; } });
+  let h = '';
+  for (let i = 0; i < S.mask.length; i++) {
+    if (S.mask[i] === '#') { h += '<div class="cx blk"></div>'; continue; }
+    const k = S.known[i];
+    let ch = k !== ' ' ? k : (draftAt[i] || ''), cls = 'cx';
+    if (k !== ' ' && owner[i] !== undefined) cls += ' o' + owner[i];
+    if (k === ' ' && draftAt[i]) cls += ' dr';
+    if (k === ' ' && !draftAt[i] && solution[i]) { ch = solution[i]; cls += ' miss'; }
+    if (selCells.indexOf(i) >= 0) cls += ' inw';
+    if (typing && i === cur) cls += ' cur';
+    h += '<div class="' + cls + '" data-i="' + i + '">' + (nums[i] ? '<span class="n">' + nums[i] + '</span>' : '') + esc(ch) + '</div>';
+  }
+  $('grid').innerHTML = h;
+  fitGrid();
+}
+
+const KEYS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM⌫'];
+function renderKbd() {
+  const k = $('kbd');
+  const show = myTurn() && selE >= 0 && S.entries[selE].by < 0;
+  if (!show) { k.classList.add('hidden'); k.innerHTML = ''; return; }
+  k.classList.remove('hidden');
+  k.innerHTML = KEYS.map(function (row) {
+    return '<div class="kr">' + row.split('').map(function (c) { return '<button' + (c === '⌫' ? ' class="wide" aria-label="Backspace"' : '') + ' data-k="' + c + '"' + (busy ? ' disabled' : '') + '>' + c + '</button>'; }).join('') + '</div>';
+  }).join('');
+  k.onclick = function (e) { const b = e.target.closest('button'); if (b) typeKey(b.dataset.k); };
+}
+
+function renderActions() {
+  const a = $('actions'), m = me();
+  const dis = busy ? ' disabled' : '';
+  a.onclick = null;
+  if (m < 0) {
+    a.innerHTML = '<div class="note">You\'re watching. If you\'re one of these players (first time in the Games app):</div>' +
+      S.players.map(function (p, i) { return '<button data-claim="' + i + '"' + dis + '>I\'m ' + esc(p.name) + '</button>'; }).join('');
+    a.onclick = function (e) { const b = e.target.closest('button'); if (b && b.dataset.claim) claimSeat(+b.dataset.claim); };
+    return;
+  }
+  if (S.status === 'play') {
+    const mine = myTurn(), e = selE >= 0 ? S.entries[selE] : null, open = mine && e && e.by < 0;
+    const nb = open ? blanksOf(e).length : 0;
+    a.innerHTML = '<button class="rv" id="bReveal"' + (open && nb >= 2 ? dis : ' disabled') + '>Reveal −' + REVEAL_COST + '</button>' +
+      '<button id="bPass"' + (mine ? dis : ' disabled') + '>Pass</button>' +
+      '<button class="primary" id="bGuess"' + (open && draft.length === nb && nb > 0 ? dis : ' disabled') + '>Guess</button>';
+    $('bReveal').onclick = revealSheet;
+    $('bPass').onclick = passSheet;
+    $('bGuess').onclick = guess;
+    return;
+  }
+  if (S.status === 'over') {
+    a.innerHTML = '<button class="primary" id="bRe"' + dis + '>' + (busy ? 'Building…' : 'Rematch (same players)') + '</button><button id="bNew"' + dis + '>New game</button>';
+    $('bRe').onclick = rematch;
+    $('bNew').onclick = function () { setupSheet(); };
+  }
+}
+
+// One line under the buttons: whose move it is, how many words are left, and the last move (the log is under ☰ → Recent).
+function renderStatus() {
+  const el = $('status'), left = S.entries.filter(function (e) { return e.by < 0; }).length;
+  if (S.status === 'over') { el.className = 'wrap'; el.textContent = S.endNote || 'Game over.'; return; }
+  el.className = '';
+  const mv = (S.moves || [])[(S.moves || []).length - 1];
+  const last = mv ? ' · ' + esc((S.players[mv.p] || { name: '?' }).name) + ': ' + esc(mv.t) : '';
+  const lead = me() < 0 ? 'You\'re watching' : myTurn() ? '<b class="me">Your turn</b>' : 'Waiting for <b>' + esc(name(S.turn)) + '</b>';
+  el.innerHTML = lead + ' · ' + left + ' left' + last;
+}
+
+function sizePicker(id, cur) {
+  return '<select id="' + id + '">' + Object.keys(SIZES).map(function (k) {
+    return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + SIZES[k].label + ' (about ' + SIZES[k].words + ' words)</option>';
+  }).join('') + '</select>';
+}
+function lastSize() { const s = lsGet('crossword-size'); return SIZES[s] ? s : 'medium'; }
+
+function renderLobby() {
+  const L = $('lobby');
+  if (!S) {
+    L.innerHTML = '<div class="card"><h2>New game</h2><div class="small">A crossword for two, each on their own phone. Take turns picking a clue and typing the answer: a right answer claims the word (10 points a letter), a wrong one passes the turn. Most points wins.</div>' +
+      '<div class="small" style="margin:12px 0 6px">Size</div>' + sizePicker('cSize', lastSize()) +
+      '<div class="small" style="margin-top:8px">Playing as <b>' + esc(myName()) + '</b>. Tap your avatar at the top right to change your name.</div>' +
+      '<button class="primary" id="bCreate" style="width:100%;margin-top:12px"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Building…' : 'Create game') + '</button></div>';
+    $('bCreate').onclick = function () { const s = $('cSize').value; lsSet('crossword-size', s); newGame(myName(), s); };
+    return;
+  }
+  const m = me();
+  let h = '<div class="card"><h2>Lobby</h2>' + S.players.map(function (p, i) {
+    return '<div class="seat"><span>' + av(p) + esc(p.name) + (i === 0 ? ' <span class="small">(host)</span>' : '') + (i === m ? ' <span class="small">(you)</span>' : '') + '</span></div>';
+  }).join('') + '<div class="small" style="margin-top:8px">' + SIZES[S.size || 'medium'].label + ' crossword, ' + S.entries.length + ' words.</div></div>';
+  if (m < 0 && S.players.length < MAX_SEATS) {
+    h += '<div class="card"><h2>Join</h2><div class="small">Joining as <b>' + esc(myName()) + '</b>. The game starts as soon as you join.</div><button class="primary" id="bJoin" style="width:100%;margin-top:10px">Join game</button></div>';
+  } else if (m >= 0) {
+    h += '<div class="card small center">Waiting for the other player to join from their Crossword tab…</div>';
+  }
+  L.innerHTML = h;
+  if ($('bJoin')) $('bJoin').onclick = function () { join(myName()); };
+}
+
+function myName() { return lsGet('crossword-name') || 'Player'; }   // the app login name (shim.js keeps it current)
+
+// ---------- sheets ----------
+function openSheet(html) { $('sheetIn').innerHTML = html; $('sheet').classList.remove('hidden'); }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+$('sheet').onclick = function (e) { if (e.target.id === 'sheet') closeSheet(); };
+
+function clueSheet() {
+  const part = function (dir, title) {
+    const rows = S.entries.map(function (e, i) { return [e, i]; }).filter(function (x) { return x[0].dir === dir; });
+    return '<h3>' + title + '</h3>' + rows.map(function (x) {
+      const e = x[0], i = x[1];
+      return '<div class="cl' + (e.by >= 0 ? ' dn' : '') + (i === selE ? ' sel' : '') + '" data-e="' + i + '"><b>' + e.num + '</b><span class="t">' + esc(e.clue) + ' (' + e.len + ')</span>' +
+        (e.by >= 0 ? ' <span class="sw s' + e.by + '"></span>' + esc(e.ans) : '') + '</div>';
+    }).join('');
+  };
+  openSheet(part('A', 'Across') + part('D', 'Down') + '<button id="cDone" style="width:100%;margin-top:6px">Close</button>');
+  $('sheetIn').onclick = function (ev) {
+    const c = ev.target.closest('.cl');
+    if (c) { closeSheet(); selectEntry(+c.dataset.e); $('sheetIn').onclick = null; }
+  };
+  $('cDone').onclick = function () { $('sheetIn').onclick = null; closeSheet(); };
+}
+function passSheet() {
+  const ends = (S.idle || 0) >= IDLE_END - 1;
+  openSheet('<h3>Pass your turn?</h3><div class="small">' + (ends ? 'Nobody has solved a word for ' + (IDLE_END - 1) + ' turns in a row, so passing now <b>ends the game</b>.' : 'If ' + IDLE_END + ' turns in a row go by without anyone solving a word, the game ends.') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button id="pNo" style="flex:1">Keep playing</button><button class="primary" id="pYes" style="flex:1">' + (ends ? 'Pass and end' : 'Pass') + '</button></div>');
+  $('pNo').onclick = closeSheet;
+  $('pYes').onclick = function () { closeSheet(); pass(); };
+}
+function revealSheet() {
+  const e = S.entries[selE];
+  openSheet('<h3>Reveal a letter?</h3><div class="small">One random empty square in <b>' + lab(e) + '</b> is filled in for <b>−' + REVEAL_COST + '</b> points, and your turn ends. The letter helps the other player too, and if it finishes any other word, that word is yours.</div>' +
+    '<div class="row" style="margin-top:12px"><button id="rNo" style="flex:1">Never mind</button><button class="primary" id="rYes" style="flex:1">Reveal</button></div>');
+  $('rNo').onclick = closeSheet;
+  $('rYes').onclick = function () { closeSheet(); revealLetter(); };
+}
+function setupSheet() {
+  openSheet('<h3>Start a new game</h3><div class="small">This replaces the current game in this tab for both of you. A new crossword is built.</div>' +
+    '<div class="small" style="margin:12px 0 6px">Size</div>' + sizePicker('nSize', S && SIZES[S.size] ? S.size : lastSize()) +
+    '<div class="row" style="margin-top:12px"><button id="nCancel" style="flex:1">Cancel</button><button class="primary" id="nGo" style="flex:2">Create game</button></div>');
+  $('nCancel').onclick = closeSheet;
+  $('nGo').onclick = function () { const s = $('nSize').value; lsSet('crossword-size', s); closeSheet(); newGame(myName(), s); };
+}
+function menuSheet() {
+  openSheet('<h3>Crossword</h3>' +
+    (window.GamesApp && GamesApp.winnersLog ? '<button id="mLog" style="width:100%;margin-bottom:10px">🏆 Winners\' Log</button>' : '') +
+    '<div class="card"><h2>How to play</h2><div class="small">Take turns. On your turn tap a square (tap it again for the other direction) or use ◀ ▶ to pick a clue, type the letters for its <b>empty</b> squares, and tap <b>Guess</b>. ' +
+    'A right answer claims the word: <b>' + PER_LETTER + ' points a letter</b>. Any other word that your letters finish is yours too, so think about which letters you hand over: a word that is one letter short is easy pickings. ' +
+    'A wrong guess just passes the turn. Stuck? <b>Reveal</b> fills in one random square of the clue for <b>−' + REVEAL_COST + '</b> and ends your turn (it helps your opponent as well). ' +
+    'The game ends when every word is solved, or after ' + IDLE_END + ' turns in a row with no new word. Highest score wins. Blue is whoever started the game, Red joined it; who goes first is random.</div></div>' +
+    (S && S.entries ? '<button id="mClues" style="width:100%;margin-bottom:10px">All clues</button>' : '') +
+    (S && S.log ? '<div class="card"><h2>Recent</h2>' + S.log.map(function (l) { return '<div class="small">' + esc(l) + '</div>'; }).join('') + '</div>' : '') +
+    '<button id="mNew" style="width:100%;margin-bottom:10px">Start a new game in this tab</button>' +
+    (S ? '<button id="mClose2" style="width:100%;margin-bottom:10px">Close this game</button>' : '') +
+    '<div class="card"><h2>Version history</h2>' + VERSIONS.map(function (v) { return '<div class="small" style="margin-bottom:6px"><b>' + v[0] + '</b> (' + v[1] + '): ' + esc(v[2]) + '</div>'; }).join('') + '</div>' +
+    '<button id="mClose" style="width:100%">Close</button>');
+  if ($('mLog')) $('mLog').onclick = function () { closeSheet(); GamesApp.winnersLog('crossword'); };
+  if ($('mClues')) $('mClues').onclick = function () { closeSheet(); setTimeout(clueSheet, 50); };
+  $('mNew').onclick = function () { closeSheet(); setTimeout(setupSheet, 50); };
+  if ($('mClose2')) $('mClose2').onclick = function () {
+    openSheet('<h3>Close this game?</h3><div class="small">It ends for both of you and the tab is freed. This can\'t be undone.</div>' +
+      '<div class="row" style="margin-top:12px"><button id="cNo" style="flex:1">Keep it</button><button class="primary" id="cYes" style="flex:1">Close game</button></div>');
+    $('cNo').onclick = closeSheet;
+    $('cYes').onclick = function () { closeSheet(); closeGame(); };
+  };
+  $('mClose').onclick = closeSheet;
+}
+$('menuBtn').onclick = menuSheet;
+
+function toast(t) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+function buzzIfMyTurn() {
+  const key = S && (S.gid + ':' + S.moveNo + ':' + S.status);
+  if (myTurn() && key !== lastTurnKey && lastTurnKey && navigator.vibrate) navigator.vibrate(120);
+  lastTurnKey = key || '';
+}
+
+// ---------- start ----------
+render();
+window.addEventListener('gamesprofiles', function () { if (S && window.GamesApp) GamesApp.fixNames(S.players); render(); });
+store.get(function (st, err) {
+  if (st !== undefined) apply(st);
+  else toast(/Unknown game/.test(String(err && err.message || err)) ? 'Crossword needs Games API 1.7. Player 1 has to update the Games API first.' : 'Could not load the game.');
+});
+setInterval(poll, 4000);
+document.addEventListener('visibilitychange', poll);
+</script>
+</body>
+</html>
